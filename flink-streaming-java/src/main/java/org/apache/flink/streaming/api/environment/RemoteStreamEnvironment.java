@@ -23,15 +23,12 @@ import org.apache.flink.api.common.ExecutionConfig;
 import org.apache.flink.api.common.InvalidProgramException;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.java.ExecutionEnvironment;
-import org.apache.flink.client.program.ClusterClient;
 import org.apache.flink.client.program.JobWithJars;
 import org.apache.flink.client.program.ProgramInvocationException;
-import org.apache.flink.client.program.rest.RestClusterClient;
 import org.apache.flink.configuration.Configuration;
-import org.apache.flink.configuration.JobManagerOptions;
-import org.apache.flink.configuration.RestOptions;
 import org.apache.flink.runtime.jobgraph.SavepointRestoreSettings;
 import org.apache.flink.streaming.api.graph.StreamGraph;
+import org.apache.flink.streaming.submitter.RemoteSubmitter;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -250,61 +247,20 @@ public class RemoteStreamEnvironment extends StreamExecutionEnvironment {
 		Configuration clientConfiguration,
 		List<URL> globalClasspaths,
 		SavepointRestoreSettings savepointRestoreSettings
-	) throws ProgramInvocationException {
+	) throws Exception {
 		if (LOG.isInfoEnabled()) {
 			LOG.info("Running remotely at {}:{}", host, port);
 		}
 
-		ClassLoader userCodeClassLoader = JobWithJars.buildUserCodeClassLoader(jarFiles, globalClasspaths, envClassLoader);
-
-		Configuration configuration = new Configuration();
-		configuration.addAll(clientConfiguration);
-
-		configuration.setString(JobManagerOptions.ADDRESS, host);
-		configuration.setInteger(JobManagerOptions.PORT, port);
-
-		configuration.setInteger(RestOptions.PORT, port);
-
-		final ClusterClient<?> client;
-		try {
-			client = new RestClusterClient<>(configuration, "RemoteStreamEnvironment");
-		}
-		catch (Exception e) {
-			throw new ProgramInvocationException("Cannot establish connection to JobManager: " + e.getMessage(),
-				streamGraph.getJobGraph().getJobID(), e);
-		}
-
-		client.setPrintStatusDuringExecution(executionConfig.isSysoutLoggingEnabled());
-
-		if (savepointRestoreSettings == null) {
-			savepointRestoreSettings = SavepointRestoreSettings.none();
-		}
-
-		try {
-			return client.run(streamGraph, jarFiles, globalClasspaths, userCodeClassLoader, savepointRestoreSettings)
-				.getJobExecutionResult();
-		}
-		catch (ProgramInvocationException e) {
-			throw e;
-		}
-		catch (Exception e) {
-			String term = e.getMessage() == null ? "." : (": " + e.getMessage());
-			throw new ProgramInvocationException("The program execution failed" + term,
-				streamGraph.getJobGraph().getJobID(), e);
-		}
-		finally {
-			try {
-				client.shutdown();
-			} catch (Exception e) {
-				LOG.warn("Could not properly shut down the cluster client.", e);
-			}
-		}
+		// to be implemented
+		RemoteSubmitter remoteSubmitter = new RemoteSubmitter();
+		return remoteSubmitter.execute(streamGraph);
 	}
 
 	@Override
 	public JobExecutionResult execute(String jobName) throws ProgramInvocationException {
 		StreamGraph streamGraph = getStreamGraph(jobName);
-		transformations.clear();
+		getTransformationContext().clear();
 		return executeRemotely(streamGraph, jarFiles);
 	}
 

@@ -20,11 +20,10 @@ package org.apache.flink.streaming.api.environment;
 import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.java.ExecutionEnvironment;
-import org.apache.flink.client.program.OptimizerPlanEnvironment;
-import org.apache.flink.client.program.PreviewPlanEnvironment;
 import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.configuration.GlobalConfiguration;
 import org.apache.flink.streaming.api.graph.StreamGraph;
+import org.apache.flink.streaming.submitter.PlanSubmitter;
 
 /**
  * A special {@link StreamExecutionEnvironment} that is used in the web frontend when generating
@@ -58,14 +57,10 @@ public class StreamPlanEnvironment extends StreamExecutionEnvironment {
 
 		StreamGraph streamGraph = getStreamGraph(jobName);
 
-		transformations.clear();
+		getTransformationContext().clear();
 
-		if (env instanceof OptimizerPlanEnvironment) {
-			((OptimizerPlanEnvironment) env).setPlan(streamGraph);
-		} else if (env instanceof PreviewPlanEnvironment) {
-			((PreviewPlanEnvironment) env).setPreview(streamGraph.getStreamingPlanAsJSON());
-		}
+		PlanSubmitter planSubmitter = new PlanSubmitter(env);
 
-		throw new OptimizerPlanEnvironment.ProgramAbortException();
+		return planSubmitter.execute(streamGraph);
 	}
 }

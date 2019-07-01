@@ -33,6 +33,7 @@ import org.apache.flink.api.common.time.Time;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.api.dag.Transformation;
+import org.apache.flink.api.dag.TransformationContext;
 import org.apache.flink.api.java.ClosureCleaner;
 import org.apache.flink.api.java.ExecutionEnvironment;
 import org.apache.flink.api.java.Utils;
@@ -132,7 +133,7 @@ public abstract class StreamExecutionEnvironment {
 	/** Settings that control the checkpointing behavior. */
 	private final CheckpointConfig checkpointCfg = new CheckpointConfig();
 
-	protected final List<Transformation<?>> transformations = new ArrayList<>();
+	private final TransformationContext transformationContext = new TransformationContext();
 
 	private long bufferTimeout = DEFAULT_NETWORK_BUFFER_TIMEOUT;
 
@@ -1526,10 +1527,10 @@ public abstract class StreamExecutionEnvironment {
 	}
 
 	private StreamGraphGenerator getStreamGraphGenerator() {
-		if (transformations.size() <= 0) {
+		if (transformationContext.getTransformations().size() <= 0) {
 			throw new IllegalStateException("No operators defined in streaming topology. Cannot execute.");
 		}
-		return new StreamGraphGenerator(transformations, config, checkpointCfg)
+		return new StreamGraphGenerator(transformationContext.getTransformations(), config, checkpointCfg)
 			.setStateBackend(defaultStateBackend)
 			.setChaining(isChainingEnabled)
 			.setUserArtifacts(cacheFile)
@@ -1575,7 +1576,7 @@ public abstract class StreamExecutionEnvironment {
 	@Internal
 	public void addOperator(Transformation<?> transformation) {
 		Preconditions.checkNotNull(transformation, "transformation must not be null.");
-		this.transformations.add(transformation);
+		transformationContext.addTransformation(transformation);
 	}
 
 	// --------------------------------------------------------------------------------------------
@@ -1835,5 +1836,10 @@ public abstract class StreamExecutionEnvironment {
 	 */
 	public void registerCachedFile(String filePath, String name, boolean executable) {
 		this.cacheFile.add(new Tuple2<>(name, new DistributedCache.DistributedCacheEntry(filePath, executable)));
+	}
+
+	@Internal
+	public TransformationContext getTransformationContext() {
+		return transformationContext;
 	}
 }
