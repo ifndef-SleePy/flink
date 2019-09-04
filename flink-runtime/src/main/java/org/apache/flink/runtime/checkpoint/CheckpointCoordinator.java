@@ -416,14 +416,12 @@ public class CheckpointCoordinator {
 		checkNotNull(checkpointProperties);
 
 		try {
-			PendingCheckpoint pendingCheckpoint = triggerCheckpoint(
+			return triggerCheckpoint(
 					timestamp,
 					checkpointProperties,
 					targetLocation,
 					false,
 					advanceToEndOfEventTime);
-
-			return pendingCheckpoint.getCompletionFuture();
 		} catch (CheckpointException e) {
 			Throwable cause = new CheckpointException("Failed to trigger savepoint.", e.getCheckpointFailureReason());
 			return FutureUtils.completedExceptionally(cause);
@@ -454,12 +452,29 @@ public class CheckpointCoordinator {
 	}
 
 	@VisibleForTesting
-	public PendingCheckpoint triggerCheckpoint(
+	public CompletableFuture<CompletedCheckpoint> triggerCheckpoint(
+		long timestamp,
+		CheckpointProperties props,
+		@Nullable String externalSavepointLocation,
+		boolean isPeriodic,
+		boolean advanceToEndOfTime) throws CheckpointException {
+
+		return triggerCheckpoint(timestamp,
+			props,
+			externalSavepointLocation,
+			isPeriodic,
+			advanceToEndOfTime,
+			new CompletableFuture<>());
+	}
+
+	@VisibleForTesting
+	public CompletableFuture<CompletedCheckpoint> triggerCheckpoint(
 			long timestamp,
 			CheckpointProperties props,
 			@Nullable String externalSavepointLocation,
 			boolean isPeriodic,
-			boolean advanceToEndOfTime) throws CheckpointException {
+			boolean advanceToEndOfTime,
+			CompletableFuture<CompletedCheckpoint> onCompletionPromise) throws CheckpointException {
 
 		if (advanceToEndOfTime && !(props.isSynchronous() && props.isSavepoint())) {
 			throw new IllegalArgumentException("Only synchronous savepoints are allowed to advance the watermark to MAX.");
@@ -567,7 +582,8 @@ public class CheckpointCoordinator {
 				ackTasks,
 				props,
 				checkpointStorageLocation,
-				executor);
+				executor,
+				onCompletionPromise);
 
 			if (statsTracker != null) {
 				PendingCheckpointStats callback = statsTracker.reportPendingCheckpoint(
@@ -650,7 +666,7 @@ public class CheckpointCoordinator {
 				}
 
 				numUnsuccessfulCheckpointsTriggers.set(0);
-				return checkpoint;
+				return onCompletionPromise;
 			}
 			catch (Throwable t) {
 				// guard the map against concurrent modifications
@@ -674,6 +690,14 @@ public class CheckpointCoordinator {
 				}
 
 				throw new CheckpointException(CheckpointFailureReason.EXCEPTION, t);
+			} finally {
+				synchronized (lock) {
+					if (periodicScheduling) {
+						currentPeriodicTrigger = scheduleTriggerWithDelay(baseInterval);
+					} else {
+						currentPeriodicTrigger = null;
+					}
+				}
 			}
 
 		} // end trigger lock
@@ -1289,10 +1313,8 @@ public class CheckpointCoordinator {
 			minPauseBetweenCheckpointsNanos / 1_000_000L, baseInterval + 1L);
 	}
 
-	private ScheduledFuture<?> scheduleTriggerWithDelay(long initDelay) {
-		return timer.scheduleAtFixedRate(
-			new ScheduledTrigger(),
-			initDelay, baseInterval, TimeUnit.MILLISECONDS);
+	private ScheduledFuture<?> scheduleTriggerWithDelay(long delay) {
+		return timer.schedule(new ScheduledTrigger(), delay, TimeUnit.MILLISECONDS);
 	}
 
 	// ------------------------------------------------------------------------

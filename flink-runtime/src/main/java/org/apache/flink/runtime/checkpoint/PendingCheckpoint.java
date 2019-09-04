@@ -126,6 +126,26 @@ public class PendingCheckpoint {
 			CheckpointStorageLocation targetLocation,
 			Executor executor) {
 
+		this(jobId,
+			checkpointId,
+			checkpointTimestamp,
+			verticesToConfirm,
+			props,
+			targetLocation,
+			executor,
+			new CompletableFuture<>());
+	}
+
+	public PendingCheckpoint(
+		JobID jobId,
+		long checkpointId,
+		long checkpointTimestamp,
+		Map<ExecutionAttemptID, ExecutionVertex> verticesToConfirm,
+		CheckpointProperties props,
+		CheckpointStorageLocation targetLocation,
+		Executor executor,
+		CompletableFuture<CompletedCheckpoint> onCompletionPromise) {
+
 		checkArgument(verticesToConfirm.size() > 0,
 				"Checkpoint needs at least one vertex that commits the checkpoint");
 
@@ -140,7 +160,7 @@ public class PendingCheckpoint {
 		this.operatorStates = new HashMap<>();
 		this.masterState = new ArrayList<>();
 		this.acknowledgedTasks = new HashSet<>(verticesToConfirm.size());
-		this.onCompletionPromise = new CompletableFuture<>();
+		this.onCompletionPromise = onCompletionPromise;
 	}
 
 	// --------------------------------------------------------------------------------------------
