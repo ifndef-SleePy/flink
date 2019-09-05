@@ -563,6 +563,7 @@ public class CheckpointCoordinator {
 				if (throwable == null) {
 					initedResult.setFields(tuple2.f0, tuple2.f1);
 
+					// TODO, try finally? how to make sure exception thrown from completable future is well handled?
 					snapshotting(
 						timestamp,
 						props,
@@ -586,6 +587,8 @@ public class CheckpointCoordinator {
 				return null; // TODO, replace handle async
 			}, timer);
 		} // end trigger lock
+
+		return onCompletionPromise;
 	}
 
 	private CompletableFuture<Tuple2<Long, CheckpointStorageLocation>> initializing(
@@ -667,17 +670,23 @@ public class CheckpointCoordinator {
 				// since we released the lock in the meantime, we need to re-check
 				// that the conditions still hold.
 				if (shutdown) {
-					throw new CheckpointException(CheckpointFailureReason.CHECKPOINT_COORDINATOR_SHUTDOWN);
+					onCompletionPromise.completeExceptionally(
+						new CheckpointException(
+							CheckpointFailureReason.CHECKPOINT_COORDINATOR_SHUTDOWN));
 				}
 				else if (!props.forceCheckpoint()) {
 					if (triggerRequestQueued) {
 						LOG.warn("Trying to trigger another checkpoint for job {} while one was queued already.", job);
-						throw new CheckpointException(CheckpointFailureReason.ALREADY_QUEUED);
+						onCompletionPromise.completeExceptionally(
+							new CheckpointException(CheckpointFailureReason.ALREADY_QUEUED));
 					}
 
-					checkConcurrentCheckpoints();
-
-					checkMinPauseBetweenCheckpoints();
+					try {
+						checkConcurrentCheckpoints();
+						checkMinPauseBetweenCheckpoints();
+					} catch (CheckpointException e) {
+						onCompletionPromise.completeExceptionally(e);
+					}
 				}
 
 				LOG.info("Triggering checkpoint {} @ {} for job {}.", checkpointID, timestamp, job);
