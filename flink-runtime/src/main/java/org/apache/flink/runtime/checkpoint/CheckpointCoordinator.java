@@ -89,13 +89,6 @@ public class CheckpointCoordinator {
 	/** Coordinator-wide lock to safeguard the checkpoint updates. */
 	private final Object lock = new Object();
 
-	/** Lock specially to make sure that trigger requests do not overtake each other.
-	 * This is not done with the coordinator-wide lock, because as part of triggering,
-	 * blocking operations may happen (distributed atomic counters).
-	 * Using a dedicated lock, we avoid blocking the processing of 'acknowledge/decline'
-	 * messages during that phase. */
-	private final Object triggerLock = new Object();
-
 	/** The job whose checkpoint this coordinator coordinates. */
 	private final JobID job;
 
@@ -189,6 +182,10 @@ public class CheckpointCoordinator {
 
 	private final CheckpointFailureManager failureManager;
 
+	private ArrayDeque<CheckpointTrigger> queuedTriggers;
+
+	private boolean isTriggering = false;
+
 	// --------------------------------------------------------------------------------------------
 
 	public CheckpointCoordinator(
@@ -239,6 +236,7 @@ public class CheckpointCoordinator {
 
 		this.recentPendingCheckpoints = new ArrayDeque<>(NUM_GHOST_CHECKPOINT_IDS);
 		this.masterHooks = new HashMap<>();
+		this.queuedTriggers = new ArrayDeque<>();
 
 		this.timer = new ScheduledThreadPoolExecutor(1,
 				new DispatcherThreadFactory(Thread.currentThread().getThreadGroup(), "Checkpoint Timer"));
@@ -444,7 +442,8 @@ public class CheckpointCoordinator {
 			triggerCheckpoint(timestamp, checkpointProperties, null, isPeriodic, false);
 			return true;
 		} catch (CheckpointException e) {
-			long latestGeneratedCheckpointId = getCheckpointIdCounter().get();
+			long latestGeneratedCheckpointId;
+			latestGeneratedCheckpointId = checkpointIdCounter.get();
 			// here we can not get the failed pending checkpoint's id,
 			// so we pass the negative latest generated checkpoint id as a special flag
 			failureManager.handleJobLevelCheckpointException(e, -1 * latestGeneratedCheckpointId);
@@ -482,8 +481,6 @@ public class CheckpointCoordinator {
 				throw new IllegalArgumentException("Only synchronous savepoints are allowed to advance the watermark to MAX.");
 			}
 
-			// make some eager pre-checks
-			synchronized (lock) {
 				// abort if the coordinator has been shutdown in the meantime
 				if (shutdown) {
 					throw new CheckpointException(CheckpointFailureReason.CHECKPOINT_COORDINATOR_SHUTDOWN);
@@ -504,11 +501,31 @@ public class CheckpointCoordinator {
 						throw new CheckpointException(CheckpointFailureReason.ALREADY_QUEUED);
 					}
 
-					checkConcurrentCheckpoints();
+					if (pendingCheckpoints.size() >= maxConcurrentCheckpointAttempts) {
+						queuedTriggers.add(
+							new CheckpointTrigger(
+								timestamp,
+								props,
+								externalSavepointLocation,
+								isPeriodic,
+								advanceToEndOfTime,
+								onCompletionPromise));
+						return onCompletionPromise;
+					}
 
 					checkMinPauseBetweenCheckpoints();
 				}
-			}
+				if (isTriggering) {
+					queuedTriggers.add(
+						new CheckpointTrigger(
+							timestamp,
+							props,
+							externalSavepointLocation,
+							isPeriodic,
+							advanceToEndOfTime,
+							onCompletionPromise));
+					return onCompletionPromise;
+				}
 
 			// check if all tasks that we need to trigger are running.
 			// if not, abort the checkpoint
@@ -548,14 +565,7 @@ public class CheckpointCoordinator {
 				}
 			}
 
-			// we will actually trigger this checkpoint!
-
-			// we lock with a special lock to make sure that trigger requests do not overtake each other.
-			// this is not done with the coordinator-wide lock, because the 'checkpointIdCounter'
-			// may issue blocking operations. Using a different lock than the coordinator-wide lock,
-			// we avoid blocking the processing of 'acknowledge/decline' messages during that time.
-			synchronized (triggerLock) {
-				// TODO, handler proper locker for each stage
+			isTriggering = true;
 
 				initializing(
 					props,
@@ -566,7 +576,6 @@ public class CheckpointCoordinator {
 					advanceToEndOfTime,
 					executions);
 
-			} // end trigger lock
 		} catch (Throwable throwable) {
 			onTriggerFailure(onCompletionPromise, throwable);
 		}
@@ -603,6 +612,7 @@ public class CheckpointCoordinator {
 				}
 			}, executor).
 			whenCompleteAsync((tuple2, throwable) -> {
+				isTriggering = false;
 				if (throwable == null) {
 					scheduleNextTrigger();
 					// TODO, try finally? how to make sure exception thrown from completable future is well handled?
@@ -1371,7 +1381,7 @@ public class CheckpointCoordinator {
 	}
 
 	/**
-	 * If too many checkpoints are currently in progress, we need to mark that a request is queued
+	 * If too many checkpoints are currently in progress, we need to mark that a request is queued.
 	 *
 	 * @throws CheckpointException If too many checkpoints are currently in progress.
 	 */
@@ -1387,7 +1397,7 @@ public class CheckpointCoordinator {
 	}
 
 	/**
-	 * Make sure the minimum interval between checkpoints has passed
+	 * Make sure the minimum interval between checkpoints has passed.
 	 *
 	 * @throws CheckpointException If the minimum interval between checkpoints has not passed.
 	 */
@@ -1579,5 +1589,30 @@ public class CheckpointCoordinator {
 
 	private boolean allPendingCheckpointsDiscarded() {
 		return pendingCheckpoints.values().stream().allMatch(PendingCheckpoint::isDiscarded);
+	}
+
+	private class CheckpointTrigger {
+		private long timestamp;
+		private CheckpointProperties props;
+		private @Nullable String externalSavepointLocation;
+		private boolean isPeriodic;
+		private boolean advanceToEndOfTime;
+		private CompletableFuture<CompletedCheckpoint> onCompletionPromise;
+
+		public CheckpointTrigger(
+			long timestamp,
+			CheckpointProperties props,
+			@Nullable String externalSavepointLocation,
+			boolean isPeriodic,
+			boolean advanceToEndOfTime,
+			CompletableFuture<CompletedCheckpoint> onCompletionPromise) {
+
+			this.timestamp = timestamp;
+			this.props = props;
+			this.externalSavepointLocation = externalSavepointLocation;
+			this.isPeriodic = isPeriodic;
+			this.advanceToEndOfTime = advanceToEndOfTime;
+			this.onCompletionPromise = onCompletionPromise;
+		}
 	}
 }
