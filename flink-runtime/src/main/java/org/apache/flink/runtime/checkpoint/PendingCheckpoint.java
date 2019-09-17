@@ -264,55 +264,53 @@ public class PendingCheckpoint {
 		return onCompletionPromise;
 	}
 
-	public CompletedCheckpoint finalizeCheckpoint() throws IOException {
+	public CompletableFuture<CompletedCheckpoint> finalizeCheckpoint() {
 
-		synchronized (lock) {
 			checkState(isFullyAcknowledged(), "Pending checkpoint has not been fully acknowledged yet.");
 
-			// make sure we fulfill the promise with an exception if something fails
-			try {
-				// write out the metadata
-				final Savepoint savepoint = new SavepointV2(checkpointId, operatorStates.values(), masterState);
-				final CompletedCheckpointStorageLocation finalizedLocation;
+			CompletableFuture.runAsync(() -> {
+				// make sure we fulfill the promise with an exception if something fails
+				synchronized (lock) {
+					try {
+						// write out the metadata
+						final Savepoint savepoint = new SavepointV2(checkpointId, operatorStates.values(), masterState);
+						final CompletedCheckpointStorageLocation finalizedLocation;
 
-				try (CheckpointMetadataOutputStream out = targetLocation.createMetadataOutputStream()) {
-					Checkpoints.storeCheckpointMetadata(savepoint, out);
-					finalizedLocation = out.closeAndFinalizeCheckpoint();
+						try (CheckpointMetadataOutputStream out = targetLocation.createMetadataOutputStream()) {
+							Checkpoints.storeCheckpointMetadata(savepoint, out);
+							finalizedLocation = out.closeAndFinalizeCheckpoint();
+						}
+
+						CompletedCheckpoint completed = new CompletedCheckpoint(
+							jobId,
+							checkpointId,
+							checkpointTimestamp,
+							System.currentTimeMillis(),
+							operatorStates,
+							masterState,
+							props,
+							finalizedLocation);
+
+						onCompletionPromise.complete(completed);
+
+						// to prevent null-pointers from concurrent modification, copy reference onto stack
+						PendingCheckpointStats statsCallback = this.statsCallback;
+						if (statsCallback != null) {
+							// Finalize the statsCallback and give the completed checkpoint a
+							// callback for discards.
+							CompletedCheckpointStats.DiscardCallback discardCallback =
+								statsCallback.reportCompletedCheckpoint(finalizedLocation.getExternalPointer());
+							completed.setDiscardCallback(discardCallback);
+						}
+
+						// mark this pending checkpoint as disposed, but do NOT drop the state
+						dispose(false);
+					} catch (Throwable t) {
+						onCompletionPromise.completeExceptionally(t);
+					}
 				}
-
-				CompletedCheckpoint completed = new CompletedCheckpoint(
-						jobId,
-						checkpointId,
-						checkpointTimestamp,
-						System.currentTimeMillis(),
-						operatorStates,
-						masterState,
-						props,
-						finalizedLocation);
-
-				onCompletionPromise.complete(completed);
-
-				// to prevent null-pointers from concurrent modification, copy reference onto stack
-				PendingCheckpointStats statsCallback = this.statsCallback;
-				if (statsCallback != null) {
-					// Finalize the statsCallback and give the completed checkpoint a
-					// callback for discards.
-					CompletedCheckpointStats.DiscardCallback discardCallback =
-							statsCallback.reportCompletedCheckpoint(finalizedLocation.getExternalPointer());
-					completed.setDiscardCallback(discardCallback);
-				}
-
-				// mark this pending checkpoint as disposed, but do NOT drop the state
-				dispose(false);
-
-				return completed;
-			}
-			catch (Throwable t) {
-				onCompletionPromise.completeExceptionally(t);
-				ExceptionUtils.rethrowIOException(t);
-				return null; // silence the compiler
-			}
-		}
+			}, executor);
+		return onCompletionPromise;
 	}
 
 	/**

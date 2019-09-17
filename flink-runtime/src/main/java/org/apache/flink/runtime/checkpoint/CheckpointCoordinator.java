@@ -282,7 +282,6 @@ public class CheckpointCoordinator {
 		final String id = hook.getIdentifier();
 		checkArgument(!StringUtils.isNullOrWhitespaceOnly(id), "The hook has a null or empty id");
 
-		synchronized (lock) {
 			if (!masterHooks.containsKey(id)) {
 				masterHooks.put(id, hook);
 				return true;
@@ -290,16 +289,13 @@ public class CheckpointCoordinator {
 			else {
 				return false;
 			}
-		}
 	}
 
 	/**
 	 * Gets the number of currently register master hooks.
 	 */
 	public int getNumberOfRegisteredMasterHooks() {
-		synchronized (lock) {
 			return masterHooks.size();
-		}
 	}
 
 	/**
@@ -979,88 +975,100 @@ public class CheckpointCoordinator {
 	 */
 	private void completePendingCheckpoint(PendingCheckpoint pendingCheckpoint) throws CheckpointException {
 		final long checkpointId = pendingCheckpoint.getCheckpointId();
-		final CompletedCheckpoint completedCheckpoint;
+		final CompletableFuture<CompletedCheckpoint> completedCheckpoint;
 
 		// As a first step to complete the checkpoint, we register its state with the registry
 		Map<OperatorID, OperatorState> operatorStates = pendingCheckpoint.getOperatorStates();
 		sharedStateRegistry.registerAll(operatorStates.values());
 
-		try {
-			try {
+			// IO
 				completedCheckpoint = pendingCheckpoint.finalizeCheckpoint();
-				failureManager.handleCheckpointSuccess(pendingCheckpoint.getCheckpointId());
-			}
-			catch (Exception e1) {
-				// abort the current pending checkpoint if we fails to finalize the pending checkpoint.
-				if (!pendingCheckpoint.isDiscarded()) {
-					failPendingCheckpoint(pendingCheckpoint, CheckpointFailureReason.FINALIZE_CHECKPOINT_FAILURE, e1);
-				}
-
-				throw new CheckpointException("Could not finalize the pending checkpoint " + checkpointId + '.',
-					CheckpointFailureReason.FINALIZE_CHECKPOINT_FAILURE, e1);
-			}
-
-			// the pending checkpoint must be discarded after the finalization
-			Preconditions.checkState(pendingCheckpoint.isDiscarded() && completedCheckpoint != null);
-
-			try {
-				completedCheckpointStore.addCheckpoint(completedCheckpoint);
-			} catch (Exception exception) {
-				// we failed to store the completed checkpoint. Let's clean up
-				executor.execute(new Runnable() {
-					@Override
-					public void run() {
-						try {
-							completedCheckpoint.discardOnFailedStoring();
-						} catch (Throwable t) {
-							LOG.warn("Could not properly discard completed checkpoint {}.", completedCheckpoint.getCheckpointID(), t);
+				// not IO
+				completedCheckpoint.
+					handleAsync((completed, throwable) -> {
+						synchronized (lock) {
+							if (throwable == null) {
+								failureManager.handleCheckpointSuccess(pendingCheckpoint.getCheckpointId());
+								// the pending checkpoint must be discarded after the finalization
+								Preconditions.checkState(pendingCheckpoint.isDiscarded() && completedCheckpoint != null);
+								return completed;
+							} else {
+								// abort the current pending checkpoint if we fails to finalize the pending checkpoint.
+								if (!pendingCheckpoint.isDiscarded()) {
+									failPendingCheckpoint(pendingCheckpoint, CheckpointFailureReason.FINALIZE_CHECKPOINT_FAILURE, throwable);
+								}
+								throw new CompletionException(new CheckpointException(CheckpointFailureReason.FINALIZE_CHECKPOINT_FAILURE, throwable));
+							}
 						}
-					}
-				});
+					}, executor).
+					// IO
+					thenApplyAsync((completed) -> {
+						try {
+							synchronized (completedCheckpointStore) {
+								completedCheckpointStore.addCheckpoint(completed);
+							}
+							return completed;
+						} catch (Exception exception) {
+							try {
+								completed.discardOnFailedStoring();
+							} catch (Throwable t) {
+								LOG.warn("Could not properly discard completed checkpoint {}.", completed.getCheckpointID(), t);
+							}
+							throw new CompletionException(new CheckpointException("Could not complete the pending checkpoint " + checkpointId + '.',
+								CheckpointFailureReason.FINALIZE_CHECKPOINT_FAILURE, exception));
+						}
+					}, executor).
+					// not IO
+					thenAcceptAsync((completed) -> {
+						synchronized (lock) {
+							pendingCheckpoints.remove(checkpointId);
+							triggerQueuedRequests();
 
-				throw new CheckpointException("Could not complete the pending checkpoint " + checkpointId + '.',
-					CheckpointFailureReason.FINALIZE_CHECKPOINT_FAILURE, exception);
-			}
-		} finally {
-			pendingCheckpoints.remove(checkpointId);
+							rememberRecentCheckpointId(checkpointId);
 
-			triggerQueuedRequests();
-		}
+							// drop those pending checkpoints that are at prior to the completed one
+							dropSubsumedCheckpoints(checkpointId);
 
-		rememberRecentCheckpointId(checkpointId);
+							// record the time when this was completed, to calculate
+							// the 'min delay between checkpoints'
+							lastCheckpointCompletionNanos = System.nanoTime();
 
-		// drop those pending checkpoints that are at prior to the completed one
-		dropSubsumedCheckpoints(checkpointId);
+							LOG.info("Completed checkpoint {} for job {} ({} bytes in {} ms).", checkpointId, job,
+								completed.getStateSize(), completed.getDuration());
 
-		// record the time when this was completed, to calculate
-		// the 'min delay between checkpoints'
-		lastCheckpointCompletionNanos = System.nanoTime();
+							if (LOG.isDebugEnabled()) {
+								StringBuilder builder = new StringBuilder();
+								builder.append("Checkpoint state: ");
+								for (OperatorState state : completed.getOperatorStates().values()) {
+									builder.append(state);
+									builder.append(", ");
+								}
+								// Remove last two chars ", "
+								builder.setLength(builder.length() - 2);
 
-		LOG.info("Completed checkpoint {} for job {} ({} bytes in {} ms).", checkpointId, job,
-			completedCheckpoint.getStateSize(), completedCheckpoint.getDuration());
+								LOG.debug(builder.toString());
+							}
 
-		if (LOG.isDebugEnabled()) {
-			StringBuilder builder = new StringBuilder();
-			builder.append("Checkpoint state: ");
-			for (OperatorState state : completedCheckpoint.getOperatorStates().values()) {
-				builder.append(state);
-				builder.append(", ");
-			}
-			// Remove last two chars ", "
-			builder.setLength(builder.length() - 2);
+							// send the "notify complete" call to all vertices
+							final long timestamp = completed.getTimestamp();
 
-			LOG.debug(builder.toString());
-		}
+							for (ExecutionVertex ev : tasksToCommitTo) {
+								Execution ee = ev.getCurrentExecutionAttempt();
+								if (ee != null) {
+									ee.notifyCheckpointComplete(checkpointId, timestamp);
+								}
+							}
+						}
+					}, executor);
+			// not IO
+			completedCheckpoint.whenCompleteAsync((completed, throwable) -> {
+				synchronized (lock) {
+					pendingCheckpoints.remove(checkpointId);
 
-		// send the "notify complete" call to all vertices
-		final long timestamp = completedCheckpoint.getTimestamp();
+					triggerQueuedRequests();
+				}
+					}, executor);
 
-		for (ExecutionVertex ev : tasksToCommitTo) {
-			Execution ee = ev.getCurrentExecutionAttempt();
-			if (ee != null) {
-				ee.notifyCheckpointComplete(checkpointId, timestamp);
-			}
-		}
 	}
 
 	/**
