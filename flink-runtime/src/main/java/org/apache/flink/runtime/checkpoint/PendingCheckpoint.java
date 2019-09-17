@@ -47,6 +47,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledFuture;
 
+import static com.sun.tools.javac.util.Assert.checkNull;
 import static org.apache.flink.util.Preconditions.checkArgument;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.flink.util.Preconditions.checkState;
@@ -88,7 +89,7 @@ public class PendingCheckpoint {
 
 	private final Map<ExecutionAttemptID, ExecutionVertex> notYetAcknowledgedTasks;
 
-	private final List<MasterState> masterState;
+	private List<MasterState> masterState;
 
 	/** Set of acknowledged tasks. */
 	private final Set<ExecutionAttemptID> acknowledgedTasks;
@@ -158,7 +159,6 @@ public class PendingCheckpoint {
 		this.executor = Preconditions.checkNotNull(executor);
 
 		this.operatorStates = new HashMap<>();
-		this.masterState = new ArrayList<>();
 		this.acknowledgedTasks = new HashSet<>(verticesToConfirm.size());
 		this.onCompletionPromise = onCompletionPromise;
 	}
@@ -194,7 +194,7 @@ public class PendingCheckpoint {
 	}
 
 	public boolean isFullyAcknowledged() {
-		return this.notYetAcknowledgedTasks.isEmpty() && !discarded;
+		return this.notYetAcknowledgedTasks.isEmpty() && !discarded && masterState != null;
 	}
 
 	public boolean isAcknowledgedBy(ExecutionAttemptID executionAttemptId) {
@@ -403,15 +403,14 @@ public class PendingCheckpoint {
 	/**
 	 * Adds a master state (state generated on the checkpoint coordinator) to
 	 * the pending checkpoint.
-	 *
-	 * @param state The state to add
 	 */
-	public void addMasterState(MasterState state) {
-		checkNotNull(state);
+	public void acknowledgeMaster(List<MasterState> states) {
+		checkNotNull(states);
+		checkNull(masterState);
 
 		synchronized (lock) {
 			if (!discarded) {
-				masterState.add(state);
+				masterState = states;
 			}
 		}
 	}

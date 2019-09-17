@@ -54,6 +54,7 @@ import javax.annotation.Nullable;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -711,27 +712,29 @@ public class CheckpointCoordinator {
 					cancellerHandle.cancel(false);
 				}
 
-				final CompletableFuture<List<MasterState>> completableFuture = CompletableFuture.supplyAsync(() -> {
-					try {
-						// trigger the master hooks for the checkpoint
-						return MasterHooks.triggerMasterHooks(masterHooks.values(),
-							checkpointID, timestamp, executor, Time.milliseconds(checkpointTimeout));
-					} catch (Exception e) {
-						throw new CompletionException(e);
-					}
-				// TODO, add an ack for master state in pending checkpoint
-				}, executor);
-
-				completableFuture.whenCompleteAsync((masterStates, throwable) -> {
-					if (throwable == null) {
-						for (MasterState masterState : masterStates) {
-							checkpoint.addMasterState(masterState);
+				if (masterHooks.isEmpty()) {
+					checkpoint.acknowledgeMaster(Collections.emptyList());
+				} else {
+					final CompletableFuture<List<MasterState>> completableFuture = CompletableFuture.supplyAsync(() -> {
+						try {
+							// trigger the master hooks for the checkpoint
+							return MasterHooks.triggerMasterHooks(masterHooks.values(),
+								checkpointID, timestamp, executor, Time.milliseconds(checkpointTimeout));
+						} catch (Exception e) {
+							throw new CompletionException(e);
 						}
-					} else {
-						// TODO: hanldle this in PendingCheckpoint, not fail the completable future directly
-						onCompletionPromise.completeExceptionally(throwable);
-					}
-				}, timer);
+						// TODO, add an ack for master state in pending checkpoint
+					}, executor);
+
+					completableFuture.whenCompleteAsync((masterStates, throwable) -> {
+						if (throwable == null) {
+							checkpoint.acknowledgeMaster(masterStates);
+						} else {
+							// TODO: hanldle this in PendingCheckpoint, not fail the completable future directly
+							onCompletionPromise.completeExceptionally(throwable);
+						}
+					}, timer);
+				}
 			}
 			// end of lock scope
 
