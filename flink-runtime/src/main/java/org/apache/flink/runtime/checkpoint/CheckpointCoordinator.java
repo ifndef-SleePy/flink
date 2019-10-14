@@ -531,9 +531,8 @@ public class CheckpointCoordinator {
 			// concurrent checkpoints, and the minimum time between checkpoints.
 			// these checks are not relevant for savepoints
 			if (!props.forceCheckpoint()) {
-				// sanity check: there should never be more than one trigger request queued
 				if (triggerRequestSuspended) {
-					LOG.warn("Trying to trigger another checkpoint for job {} while one was queued already.", job);
+					LOG.warn("Trying to trigger checkpoint for job {} under suspending.", job);
 					throw new CheckpointException(CheckpointFailureReason.ALREADY_QUEUED);
 				}
 
