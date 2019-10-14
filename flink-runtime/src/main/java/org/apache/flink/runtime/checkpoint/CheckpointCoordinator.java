@@ -185,6 +185,8 @@ public class CheckpointCoordinator {
 
 	private final Clock clock;
 
+	private boolean isTriggering;
+
 	// --------------------------------------------------------------------------------------------
 
 	public CheckpointCoordinator(
@@ -540,6 +542,11 @@ public class CheckpointCoordinator {
 
 				checkMinPauseBetweenCheckpoints();
 			}
+			if (isTriggering) {
+				// queue this trigger
+			} else {
+				isTriggering = true;
+			}
 		}
 
 		// check if all tasks that we need to trigger are running.
@@ -581,12 +588,19 @@ public class CheckpointCoordinator {
 		}
 
 		// we will actually trigger this checkpoint!
-		final Tuple2<Long, CheckpointStorageLocation> initializedResult =
-			initialize(props, externalSavepointLocation).get();
-		final long checkpointID = initializedResult.f0;
-		final CheckpointStorageLocation checkpointStorageLocation = initializedResult.f1;
+		final CompletableFuture<Tuple2<Long, CheckpointStorageLocation>> initializingFuture =
+			initialize(props, externalSavepointLocation);
+		initializingFuture.whenCompleteAsync((initializedResult, throwable) -> {
+			if (throwable == null) {
+				final long checkpointID = initializedResult.f0;
+				final CheckpointStorageLocation checkpointStorageLocation = initializedResult.f1;
 
-		return snapshot(timestamp, props, ackTasks, advanceToEndOfTime, executions, checkpointID, checkpointStorageLocation);
+				snapshot(timestamp, props, ackTasks, advanceToEndOfTime, executions, checkpointID, checkpointStorageLocation);
+			} else {
+				onTriggerFailure(throwable);
+			}
+		}, timer);
+		return onCompletePromise;
 	}
 
 	private CompletableFuture<Tuple2<Long, CheckpointStorageLocation>> initialize(
@@ -617,7 +631,7 @@ public class CheckpointCoordinator {
 		}, executor);
 	}
 
-	private CompletableFuture<CompletedCheckpoint> snapshot(
+	private void snapshot(
 		long timestamp,
 		CheckpointProperties props,
 		Map<ExecutionAttemptID, ExecutionVertex> ackTasks,
@@ -677,26 +691,42 @@ public class CheckpointCoordinator {
 					// checkpoint is already disposed!
 					cancellerHandle.cancel(false);
 				}
-
-				if (!masterHooks.isEmpty()) {
-					snapshotMasterState(timestamp, checkpointID, checkpoint)
-						.get(checkpointTimeout, TimeUnit.MILLISECONDS);
-				}
 			}
 			// end of lock scope
 
-			snapshotTaskState(
-				timestamp,
-				checkpointID,
-				checkpointStorageLocation,
-				props,
-				executions,
-				advanceToEndOfTime);
+			if (!masterHooks.isEmpty()) {
+				snapshotMasterState(timestamp, checkpointID, checkpoint)
+					.whenCompleteAsync((ignored, throwable) -> {
+						if (throwable == null) {
+							snapshotTaskState(
+								timestamp,
+								checkpointID,
+								checkpointStorageLocation,
+								props,
+								executions,
+								advanceToEndOfTime);
+							onTriggerSuccessfully();
+						} else {
+							onTriggerFailure();
+							onCompletionPromise.completeExceptionally(throwable);
+						}
+					}, timer);
+			} else {
+				snapshotTaskState(
+					timestamp,
+					checkpointID,
+					checkpointStorageLocation,
+					props,
+					executions,
+					advanceToEndOfTime);
+				onTriggerSuccessfully();
+			}
 
+			// TODO: move this to onTriggerSuccessfully
 			numUnsuccessfulCheckpointsTriggers.set(0);
-			return checkpoint.getCompletionFuture();
 		}
 		catch (Throwable t) {
+			// TODO: move this to onTriggerFailure
 			// guard the map against concurrent modifications
 			synchronized (lock) {
 				pendingCheckpoints.remove(checkpointID);
