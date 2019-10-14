@@ -20,6 +20,7 @@ package org.apache.flink.runtime.checkpoint;
 
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.JobID;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.runtime.checkpoint.hooks.MasterHooks;
 import org.apache.flink.runtime.concurrent.FutureUtils;
 import org.apache.flink.runtime.concurrent.ScheduledExecutor;
@@ -508,7 +509,7 @@ public class CheckpointCoordinator {
 		CheckpointProperties props,
 		@Nullable String externalSavepointLocation,
 		boolean isPeriodic,
-		boolean advanceToEndOfTime) throws CheckpointException {
+		boolean advanceToEndOfTime) throws Exception {
 
 		if (advanceToEndOfTime && !(props.isSynchronous() && props.isSavepoint())) {
 			throw new IllegalArgumentException("Only synchronous savepoints are allowed to advance the watermark to MAX.");
@@ -581,27 +582,50 @@ public class CheckpointCoordinator {
 		}
 
 		// we will actually trigger this checkpoint!
+		final Tuple2<Long, CheckpointStorageLocation> initializedResult =
+			initialize(props, externalSavepointLocation).get();
+		final long checkpointID = initializedResult.f0;
+		final CheckpointStorageLocation checkpointStorageLocation = initializedResult.f1;
 
-		final CheckpointStorageLocation checkpointStorageLocation;
-		final long checkpointID;
+		return snapshot(timestamp, props, ackTasks, advanceToEndOfTime, executions, checkpointID, checkpointStorageLocation);
+	}
 
-		try {
-			// this must happen outside the coordinator-wide lock, because it communicates
-			// with external services (in HA mode) and may block for a while.
-			checkpointID = checkpointIdCounter.getAndIncrement();
+	private CompletableFuture<Tuple2<Long, CheckpointStorageLocation>> initialize(
+		CheckpointProperties props,
+		String externalSavepointLocation) {
+		return CompletableFuture.supplyAsync(() -> {
+			try {
+				// this must happen outside the coordinator-wide lock, because it communicates
+				// with external services (in HA mode) and may block for a while.
+				long checkpointID = checkpointIdCounter.getAndIncrement();
 
-			checkpointStorageLocation = props.isSavepoint() ?
-					checkpointStorage.initializeLocationForSavepoint(checkpointID, externalSavepointLocation) :
+				CheckpointStorageLocation checkpointStorageLocation = props.isSavepoint() ?
+					checkpointStorage.initializeLocationForSavepoint(
+						checkpointID, externalSavepointLocation) :
 					checkpointStorage.initializeLocationForCheckpoint(checkpointID);
-		}
-		catch (Throwable t) {
-			int numUnsuccessful = numUnsuccessfulCheckpointsTriggers.incrementAndGet();
-			LOG.warn("Failed to trigger checkpoint for job {} ({} consecutive failed attempts so far).",
+				return Tuple2.of(checkpointID, checkpointStorageLocation);
+			} catch (Throwable t) {
+				int numUnsuccessful = numUnsuccessfulCheckpointsTriggers.incrementAndGet();
+				LOG.warn(
+					"Failed to trigger checkpoint for job {}" +
+						" ({} consecutive failed attempts so far).",
 					job,
 					numUnsuccessful,
 					t);
-			throw new CheckpointException(CheckpointFailureReason.EXCEPTION, t);
-		}
+				throw new CompletionException(
+					new CheckpointException(CheckpointFailureReason.EXCEPTION, t));
+			}
+		}, executor);
+	}
+
+	private CompletableFuture<CompletedCheckpoint> snapshot(
+		long timestamp,
+		CheckpointProperties props,
+		Map<ExecutionAttemptID, ExecutionVertex> ackTasks,
+		boolean advanceToEndOfTime,
+		Execution[] executions,
+		long checkpointID,
+		CheckpointStorageLocation checkpointStorageLocation) throws CheckpointException {
 
 		final PendingCheckpoint checkpoint = new PendingCheckpoint(
 			job,
@@ -663,35 +687,28 @@ public class CheckpointCoordinator {
 				pendingCheckpoints.put(checkpointID, checkpoint);
 
 				ScheduledFuture<?> cancellerHandle = timer.schedule(
-						canceller,
-						checkpointTimeout, TimeUnit.MILLISECONDS);
+					canceller,
+					checkpointTimeout, TimeUnit.MILLISECONDS);
 
 				if (!checkpoint.setCancellerHandle(cancellerHandle)) {
 					// checkpoint is already disposed!
 					cancellerHandle.cancel(false);
 				}
 
-				for (MasterTriggerRestoreHook<?> masterHook : masterHooks.values()) {
-					final MasterState masterState =
-						MasterHooks.triggerHook(masterHook, checkpointID, timestamp, executor)
-							.get(checkpointTimeout, TimeUnit.MILLISECONDS);
-					checkpoint.acknowledgeMasterState(masterHook.getIdentifier(), masterState);
+				if (!masterHooks.isEmpty()) {
+					snapshotMasterState(timestamp, checkpointID, checkpoint)
+						.get(checkpointTimeout, TimeUnit.MILLISECONDS);
 				}
 			}
 			// end of lock scope
 
-			final CheckpointOptions checkpointOptions = new CheckpointOptions(
-					props.getCheckpointType(),
-					checkpointStorageLocation.getLocationReference());
-
-			// send the messages to the tasks that trigger their checkpoint
-			for (Execution execution: executions) {
-				if (props.isSynchronous()) {
-					execution.triggerSynchronousSavepoint(checkpointID, timestamp, checkpointOptions, advanceToEndOfTime);
-				} else {
-					execution.triggerCheckpoint(checkpointID, timestamp, checkpointOptions);
-				}
-			}
+			snapshotTaskState(
+				timestamp,
+				checkpointID,
+				checkpointStorageLocation,
+				props,
+				executions,
+				advanceToEndOfTime);
 
 			numUnsuccessfulCheckpointsTriggers.set(0);
 			return checkpoint.getCompletionFuture();
@@ -704,7 +721,7 @@ public class CheckpointCoordinator {
 
 			int numUnsuccessful = numUnsuccessfulCheckpointsTriggers.incrementAndGet();
 			LOG.warn("Failed to trigger checkpoint {} for job {}. ({} consecutive failed attempts so far)",
-					checkpointID, job, numUnsuccessful, t);
+				checkpointID, job, numUnsuccessful, t);
 
 			if (!checkpoint.isDiscarded()) {
 				failPendingCheckpoint(checkpoint, CheckpointFailureReason.TRIGGER_CHECKPOINT_FAILURE, t);
@@ -718,6 +735,59 @@ public class CheckpointCoordinator {
 			}
 
 			throw new CheckpointException(CheckpointFailureReason.EXCEPTION, t);
+		}
+	}
+
+	private CompletableFuture<Void> snapshotMasterState(
+		long timestamp, long checkpointID, PendingCheckpoint checkpoint) {
+
+		final CompletableFuture<Void> masterStateCompletableFuture = new CompletableFuture<>();
+		for (MasterTriggerRestoreHook<?> masterHook : masterHooks.values()) {
+			MasterHooks
+				.triggerHook(masterHook, checkpointID, timestamp, executor)
+				.whenComplete((masterState, throwable) -> {
+					synchronized (lock) {
+						if (checkpoint.isDiscarded()) {
+							masterStateCompletableFuture.completeExceptionally(
+								new IllegalStateException("Checkpoint " + checkpointID + " is discarded"));
+						}
+						if (throwable == null) {
+							try {
+								checkpoint.acknowledgeMasterState(masterHook.getIdentifier(), masterState);
+								if (checkpoint.isMasterStatesFullyAcknowledged()) {
+									masterStateCompletableFuture.complete(null);
+								}
+							} catch (Throwable t) {
+								masterStateCompletableFuture.completeExceptionally(t);
+							}
+						} else {
+							masterStateCompletableFuture.completeExceptionally(throwable);
+						}
+					}
+				});
+			}
+		return masterStateCompletableFuture;
+	}
+
+	private void snapshotTaskState(
+		long timestamp,
+		long checkpointID,
+		CheckpointStorageLocation checkpointStorageLocation,
+		CheckpointProperties props,
+		Execution[] executions,
+		boolean advanceToEndOfTime) {
+
+		final CheckpointOptions checkpointOptions = new CheckpointOptions(
+			props.getCheckpointType(),
+			checkpointStorageLocation.getLocationReference());
+
+		// send the messages to the tasks that trigger their checkpoint
+		for (Execution execution: executions) {
+			if (props.isSynchronous()) {
+				execution.triggerSynchronousSavepoint(checkpointID, timestamp, checkpointOptions, advanceToEndOfTime);
+			} else {
+				execution.triggerCheckpoint(checkpointID, timestamp, checkpointOptions);
+			}
 		}
 	}
 
