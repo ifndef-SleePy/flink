@@ -535,7 +535,7 @@ public class CheckpointCoordinator {
 			if (!props.forceCheckpoint()) {
 				if (triggerRequestSuspended) {
 					LOG.warn("Trying to trigger checkpoint for job {} under suspending.", job);
-					throw new CheckpointException(CheckpointFailureReason.ALREADY_QUEUED);
+					throw new CheckpointException(CheckpointFailureReason.PERIODIC_SCHEDULER_SUSPENDED);
 				}
 
 				checkConcurrentCheckpoints();

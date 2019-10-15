@@ -25,7 +25,7 @@ public enum CheckpointFailureReason {
 
 	PERIODIC_SCHEDULER_SHUTDOWN(true, "Periodic checkpoint scheduler is shut down."),
 
-	ALREADY_QUEUED(true, "Another checkpoint request has already been queued."),
+	PERIODIC_SCHEDULER_SUSPENDED(true, "Periodic checkpoint scheduler is suspended, maybe there are too many in-flight checkpoints."),
 
 	TOO_MANY_CONCURRENT_CHECKPOINTS(true, "The maximum number of concurrent checkpoints is exceeded"),
 
