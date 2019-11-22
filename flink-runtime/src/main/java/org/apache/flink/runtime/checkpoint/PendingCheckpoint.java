@@ -119,6 +119,27 @@ public class PendingCheckpoint {
 	private volatile ScheduledFuture<?> cancellerHandle;
 
 	// --------------------------------------------------------------------------------------------
+	public PendingCheckpoint(
+		JobID jobId,
+		long checkpointId,
+		long checkpointTimestamp,
+		Map<ExecutionAttemptID, ExecutionVertex> verticesToConfirm,
+		Collection<String> masterStateIdentifiers,
+		CheckpointProperties props,
+		CheckpointStorageLocation targetLocation,
+		Executor executor) {
+
+		this(
+			jobId,
+			checkpointId,
+			checkpointTimestamp,
+			verticesToConfirm,
+			masterStateIdentifiers,
+			props,
+			targetLocation,
+			executor,
+			new CompletableFuture<>());
+	}
 
 	public PendingCheckpoint(
 			JobID jobId,
@@ -128,7 +149,8 @@ public class PendingCheckpoint {
 			Collection<String> masterStateIdentifiers,
 			CheckpointProperties props,
 			CheckpointStorageLocation targetLocation,
-			Executor executor) {
+			Executor executor,
+			CompletableFuture<CompletedCheckpoint> onCompletionPromise) {
 
 		checkArgument(verticesToConfirm.size() > 0,
 				"Checkpoint needs at least one vertex that commits the checkpoint");
@@ -145,7 +167,7 @@ public class PendingCheckpoint {
 		this.masterStates = new ArrayList<>(masterStateIdentifiers.size());
 		this.notYetAcknowledgedMasterStates = new HashSet<>(masterStateIdentifiers);
 		this.acknowledgedTasks = new HashSet<>(verticesToConfirm.size());
-		this.onCompletionPromise = new CompletableFuture<>();
+		this.onCompletionPromise = checkNotNull(onCompletionPromise);
 	}
 
 	// --------------------------------------------------------------------------------------------
