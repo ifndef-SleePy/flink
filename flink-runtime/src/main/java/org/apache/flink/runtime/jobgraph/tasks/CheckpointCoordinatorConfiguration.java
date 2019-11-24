@@ -71,7 +71,7 @@ public class CheckpointCoordinatorConfiguration implements Serializable {
 			int tolerableCpFailureNumber) {
 
 		// sanity checks
-		if (checkpointInterval < MINIMAL_CHECKPOINT_TIME || checkpointTimeout < MINIMAL_CHECKPOINT_TIME ||
+		if (checkpointInterval < MINIMAL_CHECKPOINT_TIME || (checkpointTimeout > 0 && checkpointTimeout < MINIMAL_CHECKPOINT_TIME) ||
 			minPauseBetweenCheckpoints < 0 || maxConcurrentCheckpoints < 1 ||
 			tolerableCpFailureNumber < 0) {
 			throw new IllegalArgumentException();

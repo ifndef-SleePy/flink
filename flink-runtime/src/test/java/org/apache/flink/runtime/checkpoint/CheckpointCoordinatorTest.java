@@ -277,7 +277,7 @@ public class CheckpointCoordinatorTest extends TestLogger {
 			// set up the coordinator and validate the initial state
 			CheckpointCoordinatorConfiguration chkConfig = new CheckpointCoordinatorConfiguration(
 				600000,
-				600000,
+				-1,
 				0,
 				Integer.MAX_VALUE,
 				CheckpointRetentionPolicy.NEVER_RETAIN_AFTER_TERMINATION,
@@ -1621,7 +1621,7 @@ public class CheckpointCoordinatorTest extends TestLogger {
 
 			CheckpointCoordinatorConfiguration chkConfig = new CheckpointCoordinatorConfiguration(
 				10,        // periodic interval is 10 ms
-				200000,    // timeout is very long (200 s)
+				-1,    // timeout is very long (200 s)
 				0L,        // no extra delay
 				maxConcurrentAttempts,
 				CheckpointRetentionPolicy.NEVER_RETAIN_AFTER_TERMINATION,
@@ -1645,7 +1645,7 @@ public class CheckpointCoordinatorTest extends TestLogger {
 			coord.startCheckpointScheduler();
 
 			for (int i = 0; i < maxConcurrentAttempts; i++) {
-//				manuallyTriggeredScheduledExecutor.triggerPeriodicScheduledTasks();
+				manuallyTriggeredScheduledExecutor.triggerPeriodicScheduledTasks();
 				manuallyTriggeredScheduledExecutor.triggerAll();
 			}
 
@@ -1663,11 +1663,13 @@ public class CheckpointCoordinatorTest extends TestLogger {
 			final ScheduledFuture scheduledFuture = periodicScheduledTasks.iterator().next();
 
 			manuallyTriggeredScheduledExecutor.triggerPeriodicScheduledTasks();
+			manuallyTriggeredScheduledExecutor.triggerAll();
 
 			assertEquals(maxConcurrentAttempts + 1, numCalls.get());
 
 			// no further checkpoints should happen
 			manuallyTriggeredScheduledExecutor.triggerPeriodicScheduledTasks();
+			manuallyTriggeredScheduledExecutor.triggerAll();
 			assertEquals(maxConcurrentAttempts + 1, numCalls.get());
 
 			coord.shutdown(JobStatus.FINISHED);

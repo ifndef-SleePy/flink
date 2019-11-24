@@ -652,21 +652,6 @@ public class CheckpointCoordinator {
 			checkpoint.setStatsCallback(callback);
 		}
 
-		// schedule the timer that will clean up the expired checkpoints
-		final Runnable canceller = () -> {
-			synchronized (lock) {
-				// only do the work if the checkpoint is not discarded anyways
-				// note that checkpoint completion discards the pending checkpoint object
-				if (!checkpoint.isDiscarded()) {
-					LOG.info("Checkpoint {} of job {} expired before completing.", checkpointID, job);
-
-					abortPendingCheckpoint(
-						checkpoint,
-						new CheckpointException(CheckpointFailureReason.CHECKPOINT_EXPIRED));
-				}
-			}
-		};
-
 		try {
 			// re-acquire the coordinator-wide lock
 			synchronized (lock) {
@@ -674,13 +659,29 @@ public class CheckpointCoordinator {
 
 				pendingCheckpoints.put(checkpointID, checkpoint);
 
-				ScheduledFuture<?> cancellerHandle = timer.schedule(
-					canceller,
-					checkpointTimeout, TimeUnit.MILLISECONDS);
+				if (checkpointTimeout > 0) {
+					// schedule the timer that will clean up the expired checkpoints
+					final Runnable canceller = () -> {
+						synchronized (lock) {
+							// only do the work if the checkpoint is not discarded anyways
+							// note that checkpoint completion discards the pending checkpoint object
+							if (!checkpoint.isDiscarded()) {
+								LOG.info("Checkpoint {} of job {} expired before completing.", checkpointID, job);
 
-				if (!checkpoint.setCancellerHandle(cancellerHandle)) {
-					// checkpoint is already disposed!
-					cancellerHandle.cancel(false);
+								abortPendingCheckpoint(
+									checkpoint,
+									new CheckpointException(CheckpointFailureReason.CHECKPOINT_EXPIRED));
+							}
+						}
+					};
+					ScheduledFuture<?> cancellerHandle = timer.schedule(
+						canceller,
+						checkpointTimeout, TimeUnit.MILLISECONDS);
+
+					if (!checkpoint.setCancellerHandle(cancellerHandle)) {
+						// checkpoint is already disposed!
+						cancellerHandle.cancel(false);
+					}
 				}
 			}
 			// end of lock scope
