@@ -1773,7 +1773,7 @@ public class CheckpointCoordinatorTest extends TestLogger {
 
 			CheckpointCoordinatorConfiguration chkConfig = new CheckpointCoordinatorConfiguration(
 				10,        // periodic interval is 10 ms
-				200000,    // timeout is very long (200 s)
+				-1,    // timeout is very long (200 s)
 				0L,        // no extra delay
 				2, // max two concurrent checkpoints
 				CheckpointRetentionPolicy.NEVER_RETAIN_AFTER_TERMINATION,
@@ -1797,6 +1797,7 @@ public class CheckpointCoordinatorTest extends TestLogger {
 			coord.startCheckpointScheduler();
 
 			manuallyTriggeredScheduledExecutor.triggerPeriodicScheduledTasks();
+			manuallyTriggeredScheduledExecutor.triggerAll();
 			// no checkpoint should have started so far
 			assertEquals(0, coord.getNumberOfPendingCheckpoints());
 
@@ -1805,6 +1806,7 @@ public class CheckpointCoordinatorTest extends TestLogger {
 
 			// the coordinator should start checkpointing now
 			manuallyTriggeredScheduledExecutor.triggerPeriodicScheduledTasks();
+			manuallyTriggeredScheduledExecutor.triggerAll();
 
 			assertTrue(coord.getNumberOfPendingCheckpoints() > 0);
 		}
@@ -2540,6 +2542,8 @@ public class CheckpointCoordinatorTest extends TestLogger {
 					null,
 					true,
 					false);
+			// TODO, we have removed the double check!
+			manuallyTriggeredScheduledExecutor.triggerAll();
 			try {
 				onCompletionPromise.get();
 				fail("should not trigger periodic checkpoint after stop the coordinator.");

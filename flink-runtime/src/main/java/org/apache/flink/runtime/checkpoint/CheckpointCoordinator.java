@@ -592,11 +592,11 @@ public class CheckpointCoordinator {
 							checkpointIdAndStorageLocation.checkpointStorageLocation,
 							onCompletionPromise);
 					} else {
-						onTriggerFailure(throwable);
+						onTriggerFailure(onCompletionPromise, throwable);
 					}
 				}, timer);
 		} catch (Throwable throwable) {
-			onTriggerFailure(throwable);
+			onTriggerFailure(onCompletionPromise, throwable);
 		}
 	}
 
@@ -632,6 +632,7 @@ public class CheckpointCoordinator {
 		CheckpointStorageLocation checkpointStorageLocation,
 		CompletableFuture<CompletedCheckpoint> onCompletionPromise) {
 
+		try {
 		final PendingCheckpoint checkpoint = new PendingCheckpoint(
 			job,
 			checkpointID,
@@ -652,7 +653,6 @@ public class CheckpointCoordinator {
 			checkpoint.setStatsCallback(callback);
 		}
 
-		try {
 			// re-acquire the coordinator-wide lock
 			synchronized (lock) {
 				LOG.info("Triggering checkpoint {} @ {} for job {}.", checkpointID, timestamp, job);
@@ -778,10 +778,11 @@ public class CheckpointCoordinator {
 		consumeCheckpointTriggerRequest();
 	}
 
-	private void onTriggerFailure(Throwable throwable) {
+	private void onTriggerFailure(
+		CompletableFuture<CompletedCheckpoint> onCompletionPromise, Throwable throwable) {
+
+		onCompletionPromise.completeExceptionally(throwable);
 		onTriggerFailure(-1, throwable);
-		// all trigger failures are ignored by failure manager
-		// failureManager.handleJobLevelCheckpointException(throwable, -1);
 	}
 
 	private void onTriggerFailure(long checkpointID, Throwable throwable) {
