@@ -21,7 +21,6 @@ package org.apache.flink.runtime.checkpoint;
 import org.apache.flink.annotation.VisibleForTesting;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.runtime.checkpoint.hooks.MasterHooks;
-import org.apache.flink.runtime.concurrent.FutureUtils;
 import org.apache.flink.runtime.concurrent.ScheduledExecutor;
 import org.apache.flink.runtime.execution.ExecutionState;
 import org.apache.flink.runtime.executiongraph.Execution;
@@ -556,17 +555,6 @@ public class CheckpointCoordinator {
 				}
 			}
 
-			if (isTriggering) {
-				triggerRequestQueue.add(new CheckpointTriggerRequest(
-					timestamp,
-					props,
-					externalSavepointLocation,
-					isPeriodic,
-					advanceToEndOfTime,
-					onCompletionPromise));
-				return;
-			}
-
 			// next, check if all tasks that need to acknowledge the checkpoint are running.
 			// if not, abort the checkpoint
 			Map<ExecutionAttemptID, ExecutionVertex>
@@ -588,6 +576,7 @@ public class CheckpointCoordinator {
 			}
 
 			// we will actually trigger this checkpoint!
+			Preconditions.checkState(!isTriggering);
 			isTriggering = true;
 
 			initialize(props, externalSavepointLocation)
@@ -795,31 +784,38 @@ public class CheckpointCoordinator {
 	}
 
 	private void onTriggerFailure(long checkpointID, Throwable throwable) {
-		isTriggering = false;
-		int numUnsuccessful = numUnsuccessfulCheckpointsTriggers.incrementAndGet();
-		LOG.warn(
-			"Failed to trigger checkpoint {} for job {}. ({} consecutive failed attempts so far)",
-			checkpointID,
-			job,
-			numUnsuccessful,
-			throwable);
-		synchronized (lock) {
-			final PendingCheckpoint checkpoint = pendingCheckpoints.get(checkpointID);
-			if (checkpoint != null && !checkpoint.isDiscarded()) {
-				abortPendingCheckpoint(
-					checkpoint,
-					new CheckpointException(
-						CheckpointFailureReason.TRIGGER_CHECKPOINT_FAILURE, throwable));
+		try {
+			int numUnsuccessful = numUnsuccessfulCheckpointsTriggers.incrementAndGet();
+			LOG.warn(
+				"Failed to trigger checkpoint {} for job {}. ({} consecutive failed attempts so far)",
+				checkpointID,
+				job,
+				numUnsuccessful,
+				throwable);
+			synchronized (lock) {
+				final PendingCheckpoint checkpoint = pendingCheckpoints.get(checkpointID);
+				if (checkpoint != null && !checkpoint.isDiscarded()) {
+					abortPendingCheckpoint(
+						checkpoint,
+						new CheckpointException(
+							CheckpointFailureReason.TRIGGER_CHECKPOINT_FAILURE, throwable));
+				}
 			}
+		} finally {
+			isTriggering = false;
+			consumeCheckpointTriggerRequest();
 		}
-		consumeCheckpointTriggerRequest();
 	}
 
 	private void consumeCheckpointTriggerRequest() {
 		assert (!isTriggering);
-		final CheckpointTriggerRequest request = triggerRequestQueue.poll();
-		if (request != null) {
-			triggerCheckpoint(request);
+		if (!triggerRequestQueue.isEmpty()) {
+			timer.execute(() -> {
+				final CheckpointTriggerRequest request = triggerRequestQueue.poll();
+				if (request != null) {
+					triggerCheckpoint(request);
+				}
+			});
 		}
 	}
 

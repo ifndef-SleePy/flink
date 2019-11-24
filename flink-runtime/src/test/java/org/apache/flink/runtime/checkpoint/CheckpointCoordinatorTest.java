@@ -72,6 +72,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
@@ -1644,7 +1645,8 @@ public class CheckpointCoordinatorTest extends TestLogger {
 			coord.startCheckpointScheduler();
 
 			for (int i = 0; i < maxConcurrentAttempts; i++) {
-				manuallyTriggeredScheduledExecutor.triggerPeriodicScheduledTasks();
+//				manuallyTriggeredScheduledExecutor.triggerPeriodicScheduledTasks();
+				manuallyTriggeredScheduledExecutor.triggerAll();
 			}
 
 			assertEquals(maxConcurrentAttempts, numCalls.get());
@@ -2528,11 +2530,23 @@ public class CheckpointCoordinatorTest extends TestLogger {
 		try {
 			// start the coordinator
 			coord.startCheckpointScheduler();
+			final CompletableFuture<CompletedCheckpoint> onCompletionPromise =
+				coord.triggerCheckpoint(
+					System.currentTimeMillis(),
+					CheckpointProperties
+						.forCheckpoint(CheckpointRetentionPolicy.NEVER_RETAIN_AFTER_TERMINATION),
+					null,
+					true,
+					false);
 			try {
-				coord.triggerCheckpoint(System.currentTimeMillis(), CheckpointProperties.forCheckpoint(CheckpointRetentionPolicy.NEVER_RETAIN_AFTER_TERMINATION), null, true, false);
+				onCompletionPromise.get();
 				fail("should not trigger periodic checkpoint after stop the coordinator.");
-			} catch (CheckpointException e) {
-				assertEquals(CheckpointFailureReason.PERIODIC_SCHEDULER_SHUTDOWN, e.getCheckpointFailureReason());
+			} catch (ExecutionException e) {
+				final Optional<CheckpointException> checkpointExceptionOptional =
+					ExceptionUtils.findThrowable(e, CheckpointException.class);
+				assertTrue(checkpointExceptionOptional.isPresent());
+				assertEquals(CheckpointFailureReason.PERIODIC_SCHEDULER_SHUTDOWN,
+					checkpointExceptionOptional.get().getCheckpointFailureReason());
 			}
 		} finally {
 			coord.shutdown(JobStatus.FINISHED);

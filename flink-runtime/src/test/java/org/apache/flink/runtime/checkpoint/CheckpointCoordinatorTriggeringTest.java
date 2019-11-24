@@ -29,6 +29,7 @@ import org.apache.flink.runtime.jobgraph.tasks.CheckpointCoordinatorConfiguratio
 import org.apache.flink.runtime.messages.checkpoint.AcknowledgeCheckpoint;
 import org.apache.flink.runtime.state.SharedStateRegistry;
 import org.apache.flink.runtime.state.memory.MemoryStateBackend;
+import org.apache.flink.util.ExceptionUtils;
 import org.apache.flink.util.TestLogger;
 
 import org.junit.Before;
@@ -36,7 +37,10 @@ import org.junit.Test;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import java.util.Optional;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -283,31 +287,33 @@ public class CheckpointCoordinatorTriggeringTest extends TestLogger {
 			failureManager);
 
 		// Periodic
+		final CompletableFuture<CompletedCheckpoint> onCompletionPromise1 = coord.triggerCheckpoint(
+			System.currentTimeMillis(),
+			CheckpointProperties.forCheckpoint(CheckpointRetentionPolicy.NEVER_RETAIN_AFTER_TERMINATION),
+			null,
+			true,
+			false);
+		manuallyTriggeredScheduledExecutor.triggerAll();
 		try {
-			coord.triggerCheckpoint(
-				System.currentTimeMillis(),
-				CheckpointProperties.forCheckpoint(CheckpointRetentionPolicy.NEVER_RETAIN_AFTER_TERMINATION),
-				null,
-				true,
-				false);
-			manuallyTriggeredScheduledExecutor.triggerAll();
+			onCompletionPromise1.get();
 			fail("The triggerCheckpoint call expected an exception");
-		} catch (CheckpointException e) {
-			assertEquals(CheckpointFailureReason.PERIODIC_SCHEDULER_SHUTDOWN, e.getCheckpointFailureReason());
+		} catch (ExecutionException e) {
+			final Optional<CheckpointException> checkpointExceptionOptional =
+				ExceptionUtils.findThrowable(e, CheckpointException.class);
+			assertTrue(checkpointExceptionOptional.isPresent());
+			assertEquals(CheckpointFailureReason.PERIODIC_SCHEDULER_SHUTDOWN,
+				checkpointExceptionOptional.get().getCheckpointFailureReason());
 		}
 
 		// Not periodic
-		try {
-			coord.triggerCheckpoint(
-				System.currentTimeMillis(),
-				CheckpointProperties.forCheckpoint(CheckpointRetentionPolicy.NEVER_RETAIN_AFTER_TERMINATION),
-				null,
-				false,
-				false);
-			manuallyTriggeredScheduledExecutor.triggerAll();
-		} catch (CheckpointException e) {
-			fail("Unexpected exception : " + e.getCheckpointFailureReason().message());
-		}
+		final CompletableFuture<CompletedCheckpoint> onCompletionPromise2 = coord.triggerCheckpoint(
+			System.currentTimeMillis(),
+			CheckpointProperties.forCheckpoint(CheckpointRetentionPolicy.NEVER_RETAIN_AFTER_TERMINATION),
+			null,
+			false,
+			false);
+		manuallyTriggeredScheduledExecutor.triggerAll();
+		onCompletionPromise2.get();
 	}
 
 }
