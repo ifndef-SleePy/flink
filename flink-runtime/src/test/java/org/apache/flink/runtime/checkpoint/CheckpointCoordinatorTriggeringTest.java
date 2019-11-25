@@ -46,6 +46,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.apache.flink.runtime.checkpoint.CheckpointCoordinatorTestingUtils.mockExecutionVertex;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 import static org.mockito.ArgumentMatchers.any;
@@ -138,6 +139,7 @@ public class CheckpointCoordinatorTriggeringTest extends TestLogger {
 
 			do {
 				manuallyTriggeredScheduledExecutor.triggerPeriodicScheduledTasks();
+				manuallyTriggeredScheduledExecutor.triggerAll();
 			}
 			while (numCalls.get() < 5);
 			assertEquals(5, numCalls.get());
@@ -146,6 +148,7 @@ public class CheckpointCoordinatorTriggeringTest extends TestLogger {
 
 			// no further calls may come.
 			manuallyTriggeredScheduledExecutor.triggerPeriodicScheduledTasks();
+			manuallyTriggeredScheduledExecutor.triggerAll();
 			assertEquals(5, numCalls.get());
 
 			// start another sequence of periodic scheduling
@@ -154,6 +157,7 @@ public class CheckpointCoordinatorTriggeringTest extends TestLogger {
 
 			do {
 				manuallyTriggeredScheduledExecutor.triggerPeriodicScheduledTasks();
+				manuallyTriggeredScheduledExecutor.triggerAll();
 			}
 			while (numCalls.get() < 5);
 			assertEquals(5, numCalls.get());
@@ -162,6 +166,7 @@ public class CheckpointCoordinatorTriggeringTest extends TestLogger {
 
 			// no further calls may come
 			manuallyTriggeredScheduledExecutor.triggerPeriodicScheduledTasks();
+			manuallyTriggeredScheduledExecutor.triggerAll();
 			assertEquals(5, numCalls.get());
 
 			coord.shutdown(JobStatus.FINISHED);
@@ -221,6 +226,7 @@ public class CheckpointCoordinatorTriggeringTest extends TestLogger {
 		try {
 			coord.startCheckpointScheduler();
 			manuallyTriggeredScheduledExecutor.triggerPeriodicScheduledTasks();
+			manuallyTriggeredScheduledExecutor.triggerAll();
 
 			// wait until the first checkpoint was triggered
 			Long firstCallId = triggerCalls.take();
@@ -233,10 +239,12 @@ public class CheckpointCoordinatorTriggeringTest extends TestLogger {
 			coord.receiveAcknowledgeMessage(ackMsg, TASK_MANAGER_LOCATION_INFO);
 
 			manuallyTriggeredScheduledExecutor.triggerPeriodicScheduledTasks();
+			manuallyTriggeredScheduledExecutor.triggerAll();
 			while (triggerCalls.isEmpty()) {
 				// sleeps for a while to simulate periodic scheduling
 				Thread.sleep(checkpointInterval);
 				manuallyTriggeredScheduledExecutor.triggerPeriodicScheduledTasks();
+				manuallyTriggeredScheduledExecutor.triggerAll();
 			}
 			// wait until the next checkpoint is triggered
 			Long nextCallId = triggerCalls.take();
@@ -313,7 +321,7 @@ public class CheckpointCoordinatorTriggeringTest extends TestLogger {
 			false,
 			false);
 		manuallyTriggeredScheduledExecutor.triggerAll();
-		onCompletionPromise2.get();
+		assertFalse(onCompletionPromise2.isCompletedExceptionally());
 	}
 
 }

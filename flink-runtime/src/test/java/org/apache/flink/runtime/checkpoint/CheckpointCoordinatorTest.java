@@ -1722,6 +1722,7 @@ public class CheckpointCoordinatorTest extends TestLogger {
 
 			do {
 				manuallyTriggeredScheduledExecutor.triggerPeriodicScheduledTasks();
+				manuallyTriggeredScheduledExecutor.triggerAll();
 			}
 			while (coord.getNumberOfPendingCheckpoints() < maxConcurrentAttempts);
 
@@ -1738,6 +1739,7 @@ public class CheckpointCoordinatorTest extends TestLogger {
 			// after a while, there should be the new checkpoints
 			do {
 				manuallyTriggeredScheduledExecutor.triggerPeriodicScheduledTasks();
+				manuallyTriggeredScheduledExecutor.triggerAll();
 			}
 			while (coord.getNumberOfPendingCheckpoints() < maxConcurrentAttempts);
 
@@ -2542,7 +2544,6 @@ public class CheckpointCoordinatorTest extends TestLogger {
 					null,
 					true,
 					false);
-			// TODO, we have removed the double check!
 			manuallyTriggeredScheduledExecutor.triggerAll();
 			try {
 				onCompletionPromise.get();

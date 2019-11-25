@@ -118,6 +118,8 @@ public class PendingCheckpoint {
 
 	private volatile ScheduledFuture<?> cancellerHandle;
 
+	private CheckpointException failureCause = null;
+
 	// --------------------------------------------------------------------------------------------
 	public PendingCheckpoint(
 		JobID jobId,
@@ -264,6 +266,10 @@ public class PendingCheckpoint {
 				throw new IllegalStateException("A canceller handle was already set");
 			}
 		}
+	}
+
+	public CheckpointException getFailureCause() {
+		return failureCause;
 	}
 
 	// ------------------------------------------------------------------------
@@ -447,9 +453,9 @@ public class PendingCheckpoint {
 	 */
 	public void abort(CheckpointFailureReason reason, @Nullable Throwable cause) {
 		try {
-			CheckpointException exception = new CheckpointException(reason, cause);
-			onCompletionPromise.completeExceptionally(exception);
-			reportFailedCheckpoint(exception);
+			failureCause = new CheckpointException(reason, cause);
+			onCompletionPromise.completeExceptionally(failureCause);
+			reportFailedCheckpoint(failureCause);
 			assertAbortSubsumedForced(reason);
 		} finally {
 			dispose(true);
