@@ -45,6 +45,7 @@ import org.apache.flink.runtime.checkpoint.MasterTriggerRestoreHook;
 import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
 import org.apache.flink.runtime.concurrent.FutureUtils;
 import org.apache.flink.runtime.concurrent.FutureUtils.ConjunctFuture;
+import org.apache.flink.runtime.concurrent.ScheduledExecutor;
 import org.apache.flink.runtime.concurrent.ScheduledExecutorServiceAdapter;
 import org.apache.flink.runtime.execution.ExecutionState;
 import org.apache.flink.runtime.execution.SuppressRestartsException;
@@ -555,6 +556,37 @@ public class ExecutionGraph implements AccessExecutionGraph {
 			StateBackend checkpointStateBackend,
 			CheckpointStatsTracker statsTracker) {
 
+		checkState(checkpointCoordinatorTimer == null);
+
+		checkpointCoordinatorTimer = Executors.newSingleThreadScheduledExecutor(
+			new DispatcherThreadFactory(
+				Thread.currentThread().getThreadGroup(), "Checkpoint Timer"));
+
+		enableCheckpointing(
+			chkConfig,
+			verticesToTrigger,
+			verticesToWaitFor,
+			verticesToCommitTo,
+			masterHooks,
+			checkpointIDCounter,
+			checkpointStore,
+			checkpointStateBackend,
+			statsTracker,
+			new ScheduledExecutorServiceAdapter(checkpointCoordinatorTimer));
+	}
+
+	public void enableCheckpointing(
+		CheckpointCoordinatorConfiguration chkConfig,
+		List<ExecutionJobVertex> verticesToTrigger,
+		List<ExecutionJobVertex> verticesToWaitFor,
+		List<ExecutionJobVertex> verticesToCommitTo,
+		List<MasterTriggerRestoreHook<?>> masterHooks,
+		CheckpointIDCounter checkpointIDCounter,
+		CompletedCheckpointStore checkpointStore,
+		StateBackend checkpointStateBackend,
+		CheckpointStatsTracker statsTracker,
+		ScheduledExecutor timer) {
+
 		checkState(state == JobStatus.CREATED, "Job must be in CREATED state");
 		checkState(checkpointCoordinator == null, "checkpointing already enabled");
 
@@ -579,12 +611,6 @@ public class ExecutionGraph implements AccessExecutionGraph {
 			}
 		);
 
-		checkState(checkpointCoordinatorTimer == null);
-
-		checkpointCoordinatorTimer = Executors.newSingleThreadScheduledExecutor(
-			new DispatcherThreadFactory(
-				Thread.currentThread().getThreadGroup(), "Checkpoint Timer"));
-
 		// create the coordinator that triggers and commits checkpoints and holds the state
 		checkpointCoordinator = new CheckpointCoordinator(
 			jobInformation.getJobId(),
@@ -596,7 +622,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 			checkpointStore,
 			checkpointStateBackend,
 			ioExecutor,
-			new ScheduledExecutorServiceAdapter(checkpointCoordinatorTimer),
+			timer,
 			SharedStateRegistry.DEFAULT_FACTORY,
 			failureManager);
 

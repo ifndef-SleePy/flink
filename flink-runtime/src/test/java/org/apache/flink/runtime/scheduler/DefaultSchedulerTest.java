@@ -36,6 +36,7 @@ import org.apache.flink.runtime.executiongraph.ExecutionAttemptID;
 import org.apache.flink.runtime.executiongraph.failover.FailoverStrategyLoader;
 import org.apache.flink.runtime.executiongraph.failover.flip1.RestartPipelinedRegionStrategy;
 import org.apache.flink.runtime.executiongraph.failover.flip1.TestRestartBackoffTimeStrategy;
+import org.apache.flink.runtime.executiongraph.utils.SimpleAckingTaskManagerGateway;
 import org.apache.flink.runtime.executiongraph.utils.SimpleSlotProvider;
 import org.apache.flink.runtime.io.network.partition.NoOpJobMasterPartitionTracker;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionType;
@@ -76,6 +77,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -397,9 +399,11 @@ public class DefaultSchedulerTest extends TestLogger {
 	}
 
 	@Test
-	public void abortPendingCheckpointsWhenRestartingTasks() {
+	public void abortPendingCheckpointsWhenRestartingTasks() throws Exception {
 		final JobGraph jobGraph = singleNonParallelJobVertexJobGraph();
 		enableCheckpointing(jobGraph);
+
+		final CountDownLatch checkpointTriggeredLatch = getCheckpointTriggeredLatch();
 
 		final DefaultScheduler scheduler = createSchedulerAndStartScheduling(jobGraph);
 
@@ -410,6 +414,7 @@ public class DefaultSchedulerTest extends TestLogger {
 		final CheckpointCoordinator checkpointCoordinator = getCheckpointCoordinator(scheduler);
 
 		checkpointCoordinator.triggerCheckpoint(System.currentTimeMillis(),  false);
+		checkpointTriggeredLatch.await();
 		assertThat(checkpointCoordinator.getNumberOfPendingCheckpoints(), is(equalTo(1)));
 
 		scheduler.updateTaskExecutionState(new TaskExecutionState(jobGraph.getJobID(), attemptId, ExecutionState.FAILED));
@@ -421,6 +426,8 @@ public class DefaultSchedulerTest extends TestLogger {
 	public void restoreStateWhenRestartingTasks() throws Exception {
 		final JobGraph jobGraph = singleNonParallelJobVertexJobGraph();
 		enableCheckpointing(jobGraph);
+
+		final CountDownLatch checkpointTriggeredLatch = getCheckpointTriggeredLatch();
 
 		final DefaultScheduler scheduler = createSchedulerAndStartScheduling(jobGraph);
 
@@ -436,6 +443,7 @@ public class DefaultSchedulerTest extends TestLogger {
 
 		// complete one checkpoint for state restore
 		checkpointCoordinator.triggerCheckpoint(System.currentTimeMillis(),  false);
+		checkpointTriggeredLatch.await();
 		final long checkpointId = checkpointCoordinator.getPendingCheckpoints().keySet().iterator().next();
 		acknowledgePendingCheckpoint(scheduler, checkpointId);
 
@@ -449,6 +457,8 @@ public class DefaultSchedulerTest extends TestLogger {
 		final JobGraph jobGraph = singleNonParallelJobVertexJobGraph();
 		final JobVertex onlyJobVertex = getOnlyJobVertex(jobGraph);
 		enableCheckpointing(jobGraph);
+
+		final CountDownLatch checkpointTriggeredLatch = getCheckpointTriggeredLatch();
 
 		final DefaultScheduler scheduler = createSchedulerAndStartScheduling(jobGraph);
 
@@ -465,6 +475,7 @@ public class DefaultSchedulerTest extends TestLogger {
 
 		// complete one checkpoint for state restore
 		checkpointCoordinator.triggerCheckpoint(System.currentTimeMillis(),  false);
+		checkpointTriggeredLatch.await();
 		final long checkpointId = checkpointCoordinator.getPendingCheckpoints().keySet().iterator().next();
 		acknowledgePendingCheckpoint(scheduler, checkpointId);
 
@@ -620,4 +631,21 @@ public class DefaultSchedulerTest extends TestLogger {
 		scheduler.startScheduling();
 	}
 
+	/**
+	 * Since checkpoint is triggered asynchronously, we need to figure out when checkpoint is really
+	 * triggered.
+	 * Note that this should be invoked before scheduler initialized.
+	 *
+	 * @return the latch representing checkpoint is really triggered
+	 */
+	private CountDownLatch getCheckpointTriggeredLatch() {
+		final CountDownLatch checkpointTriggeredLatch = new CountDownLatch(1);
+		final SimpleAckingTaskManagerGateway taskManagerGateway = new SimpleAckingTaskManagerGateway();
+		testExecutionSlotAllocator.getLogicalSlotBuilder().setTaskManagerGateway(taskManagerGateway);
+		taskManagerGateway.setCheckpointConsumer(
+			(executionAttemptID, jobId, checkpointId, timestamp, checkpointOptions, advanceToEndOfEventTime) -> {
+				checkpointTriggeredLatch.countDown();
+			});
+		return checkpointTriggeredLatch;
+	}
 }

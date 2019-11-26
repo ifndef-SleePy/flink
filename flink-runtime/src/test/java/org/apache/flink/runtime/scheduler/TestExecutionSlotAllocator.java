@@ -40,6 +40,8 @@ public class TestExecutionSlotAllocator implements ExecutionSlotAllocator {
 
 	private final Map<ExecutionVertexID, SlotExecutionVertexAssignment> pendingRequests = new HashMap<>();
 
+	private final TestingLogicalSlotBuilder logicalSlotBuilder = new TestingLogicalSlotBuilder();
+
 	private boolean autoCompletePendingRequests = true;
 
 	@Override
@@ -84,7 +86,7 @@ public class TestExecutionSlotAllocator implements ExecutionSlotAllocator {
 		checkState(slotVertexAssignment != null);
 		slotVertexAssignment
 			.getLogicalSlotFuture()
-			.complete(new TestingLogicalSlotBuilder().createTestingLogicalSlot());
+			.complete(logicalSlotBuilder.createTestingLogicalSlot());
 	}
 
 	private SlotExecutionVertexAssignment removePendingRequest(final ExecutionVertexID executionVertexId) {
@@ -125,5 +127,9 @@ public class TestExecutionSlotAllocator implements ExecutionSlotAllocator {
 	@Override
 	public CompletableFuture<Void> stop() {
 		return CompletableFuture.completedFuture(null);
+	}
+
+	public TestingLogicalSlotBuilder getLogicalSlotBuilder() {
+		return logicalSlotBuilder;
 	}
 }

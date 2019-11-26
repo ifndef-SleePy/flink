@@ -790,8 +790,10 @@ public class CheckpointCoordinator {
 	 */
 	private void onTriggerFailure(
 		CompletableFuture<CompletedCheckpoint> onCompletionPromise, Throwable throwable) {
-		onCompletionPromise.completeExceptionally(throwable);
-		onTriggerFailure((PendingCheckpoint) null, throwable);
+		final CheckpointException checkpointException =
+			getCheckpointException(CheckpointFailureReason.TRIGGER_CHECKPOINT_FAILURE, throwable);
+		onCompletionPromise.completeExceptionally(checkpointException);
+		onTriggerFailure((PendingCheckpoint) null, checkpointException);
 	}
 
 	/**
@@ -811,13 +813,9 @@ public class CheckpointCoordinator {
 					job,
 					numUnsuccessful,
 					throwable);
-				final CheckpointException cause;
-				if (throwable instanceof CheckpointException) {
-					cause = (CheckpointException) throwable;
-				} else {
-					cause = new CheckpointException(
+				final CheckpointException cause =
+					getCheckpointException(
 						CheckpointFailureReason.TRIGGER_CHECKPOINT_FAILURE, throwable);
-				}
 				synchronized (lock) {
 					abortPendingCheckpoint(checkpoint, cause);
 				}
@@ -889,14 +887,9 @@ public class CheckpointCoordinator {
 					message.getTaskExecutionId(),
 					job,
 					taskManagerLocationInfo);
-				final CheckpointException checkpointException;
-				if (message.getReason() instanceof CheckpointException) {
-					checkpointException = (CheckpointException) message.getReason();
-				} else {
-					checkpointException =
-						new CheckpointException(
-							CheckpointFailureReason.CHECKPOINT_DECLINED, message.getReason());
-				}
+				final CheckpointException checkpointException =
+					getCheckpointException(
+						CheckpointFailureReason.CHECKPOINT_DECLINED, message.getReason());
 				abortPendingCheckpoint(
 					checkpoint,
 					checkpointException,
@@ -1631,6 +1624,16 @@ public class CheckpointCoordinator {
 		if (!forceCheckpoint) {
 			checkConcurrentCheckpoints();
 			checkMinPauseBetweenCheckpoints();
+		}
+	}
+
+	private static CheckpointException getCheckpointException(
+		CheckpointFailureReason defaultReason, Throwable throwable) {
+
+		if (throwable instanceof CheckpointException) {
+			return (CheckpointException) throwable;
+		} else {
+			return new CheckpointException(defaultReason, throwable);
 		}
 	}
 

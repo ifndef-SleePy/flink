@@ -85,6 +85,7 @@ public class AdaptedRestartPipelinedRegionStrategyNGAbortPendingCheckpointsTest 
 		checkState(checkpointCoordinator != null);
 
 		checkpointCoordinator.triggerCheckpoint(System.currentTimeMillis(),  false);
+		manualMainThreadExecutor.triggerAll();
 		assertEquals(1, checkpointCoordinator.getNumberOfPendingCheckpoints());
 		long checkpointId = checkpointCoordinator.getPendingCheckpoints().keySet().iterator().next();
 
@@ -138,14 +139,14 @@ public class AdaptedRestartPipelinedRegionStrategyNGAbortPendingCheckpointsTest 
 			.setSlotProvider(new SimpleSlotProvider(jobGraph.getJobID(), 2))
 			.build();
 
-		enableCheckpointing(executionGraph);
+		enableCheckpointing(executionGraph, manualMainThreadExecutor);
 		executionGraph.start(componentMainThreadExecutor);
 		executionGraph.scheduleForExecution();
 		manualMainThreadExecutor.triggerAll();
 		return executionGraph;
 	}
 
-	private static void enableCheckpointing(final ExecutionGraph executionGraph) {
+	private static void enableCheckpointing(final ExecutionGraph executionGraph, ManuallyTriggeredScheduledExecutor manualMainThreadExecutor) {
 		final List<ExecutionJobVertex> jobVertices = new ArrayList<>(executionGraph.getAllVertices().values());
 		final CheckpointCoordinatorConfiguration checkpointCoordinatorConfiguration = new CheckpointCoordinatorConfiguration(
 			Long.MAX_VALUE,
@@ -170,7 +171,8 @@ public class AdaptedRestartPipelinedRegionStrategyNGAbortPendingCheckpointsTest 
 				0,
 				jobVertices,
 				checkpointCoordinatorConfiguration,
-				new UnregisteredMetricsGroup()));
+				new UnregisteredMetricsGroup()),
+			manualMainThreadExecutor);
 	}
 
 	private static void assertNoPendingCheckpoints(final CheckpointCoordinator checkpointCoordinator) {
