@@ -1377,12 +1377,16 @@ public class CheckpointCoordinator {
 		return completedCheckpointStore;
 	}
 
-	public CheckpointIDCounter getCheckpointIdCounter() {
-		return checkpointIdCounter;
-	}
-
 	public long getCheckpointTimeout() {
 		return checkpointTimeout;
+	}
+
+	public ArrayDeque<CheckpointTriggerRequest> getTriggerRequestQueue() {
+		return triggerRequestQueue;
+	}
+
+	public boolean isTriggering() {
+		return isTriggering;
 	}
 
 	@VisibleForTesting
@@ -1449,11 +1453,11 @@ public class CheckpointCoordinator {
 	}
 
 	private void abortPendingCheckpoints(
-		PendingCheckpoint[] pendingCheckpoints, CheckpointException exception) {
+		PendingCheckpoint[] checkpoints, CheckpointException exception) {
 
 		assert Thread.holdsLock(lock);
 
-		for (PendingCheckpoint pendingCheckpoint : pendingCheckpoints) {
+		for (PendingCheckpoint pendingCheckpoint : checkpoints) {
 			abortPendingCheckpoint(pendingCheckpoint, exception);
 		}
 	}
