@@ -270,17 +270,14 @@ public class AdaptedRestartPipelinedRegionStrategyNGConcurrentFailoverTest exten
 			NettyShuffleMaster.INSTANCE,
 			ignored -> Optional.empty());
 
-		final ExecutionGraph graph = TestingExecutionGraphBuilder
+		return TestingExecutionGraphBuilder
 			.newBuilder()
 			.setJobGraph(jg)
 			.setRestartStrategy(manuallyTriggeredRestartStrategy)
 			.setFailoverStrategyFactory(TestAdaptedRestartPipelinedRegionStrategyNG::new)
 			.setSlotProvider(slotProvider)
 			.setPartitionTracker(partitionTracker)
+			.setMainThreadExecutor(componentMainThreadExecutor)
 			.build();
-
-		graph.start(componentMainThreadExecutor);
-
-		return graph;
 	}
 }

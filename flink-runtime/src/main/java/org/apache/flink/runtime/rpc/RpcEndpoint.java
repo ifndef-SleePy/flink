@@ -402,7 +402,7 @@ public abstract class RpcEndpoint implements RpcGateway, AutoCloseableAsync {
 	 */
 	protected static class MainThreadExecutor implements ComponentMainThreadExecutor {
 
-		private final MainThreadExecutable gateway;
+		private volatile MainThreadExecutable gateway;
 		private final Runnable mainThreadCheck;
 
 		MainThreadExecutor(MainThreadExecutable gateway, Runnable mainThreadCheck) {
@@ -448,6 +448,10 @@ public abstract class RpcEndpoint implements RpcGateway, AutoCloseableAsync {
 		@Override
 		public void assertRunningInMainThread() {
 			mainThreadCheck.run();
+		}
+
+		public void updateMainThreadExecutable(MainThreadExecutable gateway) {
+			this.gateway = Preconditions.checkNotNull(gateway);
 		}
 	}
 }

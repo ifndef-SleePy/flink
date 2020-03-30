@@ -24,6 +24,7 @@ import org.apache.flink.api.common.time.Time;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.blob.BlobWriter;
 import org.apache.flink.runtime.checkpoint.CheckpointRecoveryFactory;
+import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
 import org.apache.flink.runtime.concurrent.FutureUtils;
 import org.apache.flink.runtime.concurrent.ScheduledExecutor;
 import org.apache.flink.runtime.execution.ExecutionState;
@@ -113,7 +114,8 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 		final RestartBackoffTimeStrategy restartBackoffTimeStrategy,
 		final ExecutionVertexOperations executionVertexOperations,
 		final ExecutionVertexVersioner executionVertexVersioner,
-		final ExecutionSlotAllocatorFactory executionSlotAllocatorFactory) throws Exception {
+		final ExecutionSlotAllocatorFactory executionSlotAllocatorFactory,
+		final ComponentMainThreadExecutor mainThreadExecutor) throws Exception {
 
 		super(
 			log,
@@ -133,7 +135,8 @@ public class DefaultScheduler extends SchedulerBase implements SchedulerOperatio
 			shuffleMaster,
 			partitionTracker,
 			executionVertexVersioner,
-			false);
+			false,
+			mainThreadExecutor);
 
 		this.log = log;
 

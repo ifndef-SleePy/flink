@@ -24,6 +24,7 @@ import org.apache.flink.runtime.JobException;
 import org.apache.flink.runtime.akka.AkkaUtils;
 import org.apache.flink.runtime.blob.VoidBlobWriter;
 import org.apache.flink.runtime.checkpoint.StandaloneCheckpointRecoveryFactory;
+import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutorServiceAdapter;
 import org.apache.flink.runtime.executiongraph.restart.NoRestartStrategy;
 import org.apache.flink.runtime.io.network.partition.NoOpJobMasterPartitionTracker;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionType;
@@ -81,7 +82,8 @@ public class ExecutionGraphRescalingTest extends TestLogger {
 			AkkaUtils.getDefaultTimeout(),
 			TEST_LOGGER,
 			NettyShuffleMaster.INSTANCE,
-			NoOpJobMasterPartitionTracker.INSTANCE);
+			NoOpJobMasterPartitionTracker.INSTANCE,
+			ComponentMainThreadExecutorServiceAdapter.forMainThread());
 
 		for (JobVertex jv : jobVertices) {
 			assertThat(jv.getParallelism(), is(initialParallelism));
@@ -112,7 +114,8 @@ public class ExecutionGraphRescalingTest extends TestLogger {
 			AkkaUtils.getDefaultTimeout(),
 			TEST_LOGGER,
 			NettyShuffleMaster.INSTANCE,
-			NoOpJobMasterPartitionTracker.INSTANCE);
+			NoOpJobMasterPartitionTracker.INSTANCE,
+			ComponentMainThreadExecutorServiceAdapter.forMainThread());
 
 		for (JobVertex jv : jobVertices) {
 			assertThat(jv.getParallelism(), is(1));
@@ -143,7 +146,8 @@ public class ExecutionGraphRescalingTest extends TestLogger {
 			AkkaUtils.getDefaultTimeout(),
 			TEST_LOGGER,
 			NettyShuffleMaster.INSTANCE,
-			NoOpJobMasterPartitionTracker.INSTANCE);
+			NoOpJobMasterPartitionTracker.INSTANCE,
+			ComponentMainThreadExecutorServiceAdapter.forMainThread());
 
 		for (JobVertex jv : jobVertices) {
 			assertThat(jv.getParallelism(), is(scaleUpParallelism));
@@ -187,7 +191,8 @@ public class ExecutionGraphRescalingTest extends TestLogger {
 				AkkaUtils.getDefaultTimeout(),
 				TEST_LOGGER,
 				NettyShuffleMaster.INSTANCE,
-				NoOpJobMasterPartitionTracker.INSTANCE);
+				NoOpJobMasterPartitionTracker.INSTANCE,
+				ComponentMainThreadExecutorServiceAdapter.forMainThread());
 
 			fail("Building the ExecutionGraph with a parallelism higher than the max parallelism should fail.");
 		} catch (JobException e) {

@@ -27,6 +27,7 @@ import org.apache.flink.runtime.checkpoint.JobManagerTaskRestore;
 import org.apache.flink.runtime.checkpoint.StandaloneCheckpointRecoveryFactory;
 import org.apache.flink.runtime.clusterframework.types.AllocationID;
 import org.apache.flink.runtime.clusterframework.types.ResourceID;
+import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutorServiceAdapter;
 import org.apache.flink.runtime.execution.ExecutionState;
 import org.apache.flink.runtime.executiongraph.restart.FixedDelayRestartStrategy;
 import org.apache.flink.runtime.instance.SimpleSlotContext;
@@ -151,7 +152,7 @@ public class ExecutionVertexLocalityTest extends TestLogger {
 
 			TaskManagerLocation randomLocation = new TaskManagerLocation(
 					ResourceID.generate(), InetAddress.getLoopbackAddress(), 10000 + i);
-			
+
 			TaskManagerLocation location = new TaskManagerLocation(
 					ResourceID.generate(), InetAddress.getLoopbackAddress(), 20000 + i);
 
@@ -231,22 +232,21 @@ public class ExecutionVertexLocalityTest extends TestLogger {
 			timeout,
 			log,
 			NettyShuffleMaster.INSTANCE,
-			NoOpJobMasterPartitionTracker.INSTANCE);
+			NoOpJobMasterPartitionTracker.INSTANCE,
+			ComponentMainThreadExecutorServiceAdapter.forMainThread());
 	}
 
 	private void initializeLocation(ExecutionVertex vertex, TaskManagerLocation location) throws Exception {
 		// we need a bit of reflection magic to initialize the location without going through
 		// scheduling paths. we choose to do that, rather than the alternatives:
 		//  - mocking the scheduler created fragile tests that break whenever the scheduler is adjusted
-		//  - exposing test methods in the ExecutionVertex leads to undesirable setters 
+		//  - exposing test methods in the ExecutionVertex leads to undesirable setters
 
 		SlotContext slotContext = new SimpleSlotContext(
 			new AllocationID(),
 			location,
 			0,
 			mock(TaskManagerGateway.class));
-
-
 
 		LogicalSlot slot = new SingleLogicalSlot(
 			new SlotRequestId(),

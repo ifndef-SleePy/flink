@@ -20,7 +20,6 @@ package org.apache.flink.runtime.executiongraph;
 
 import org.apache.flink.api.common.time.Time;
 import org.apache.flink.runtime.clusterframework.types.SlotProfile;
-import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
 import org.apache.flink.runtime.instance.SlotSharingGroupId;
 import org.apache.flink.runtime.jobgraph.JobVertexID;
 import org.apache.flink.runtime.jobmanager.scheduler.ScheduledUnit;
@@ -28,7 +27,6 @@ import org.apache.flink.runtime.jobmaster.LogicalSlot;
 import org.apache.flink.runtime.jobmaster.SlotRequestId;
 import org.apache.flink.runtime.jobmaster.slotpool.Scheduler;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import java.util.Collections;
@@ -141,11 +139,6 @@ class ProgrammedSlotProvider implements Scheduler {
 			@Nullable SlotSharingGroupId slotSharingGroupId,
 			Throwable cause) {
 		canceledSlotRequests.add(slotRequestId);
-	}
-
-	@Override
-	public void start(@Nonnull ComponentMainThreadExecutor mainThreadExecutor) {
-
 	}
 
 	@Override

@@ -19,7 +19,6 @@
 package org.apache.flink.runtime.executiongraph;
 
 import org.apache.flink.api.common.JobStatus;
-import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutorServiceAdapter;
 import org.apache.flink.runtime.execution.ExecutionState;
 import org.apache.flink.runtime.executiongraph.restart.FixedDelayRestartStrategy;
 import org.apache.flink.runtime.executiongraph.restart.InfiniteDelayRestartStrategy;
@@ -221,7 +220,6 @@ public class ExecutionGraphSuspendTest extends TestLogger {
 	@Test
 	public void testSuspendWhileRestarting() throws Exception {
 		final ExecutionGraph eg = ExecutionGraphTestUtils.createSimpleTestGraph(new InfiniteDelayRestartStrategy(10));
-		eg.start(ComponentMainThreadExecutorServiceAdapter.forMainThread());
 		eg.scheduleForExecution();
 
 		assertEquals(JobStatus.RUNNING, eg.getState());
@@ -289,12 +287,10 @@ public class ExecutionGraphSuspendTest extends TestLogger {
 
 		final SlotProvider slotProvider = new SimpleSlotProvider(parallelism, gateway);
 
-		ExecutionGraph simpleTestGraph = ExecutionGraphTestUtils.createSimpleTestGraph(
+		return ExecutionGraphTestUtils.createSimpleTestGraph(
 			slotProvider,
 			new FixedDelayRestartStrategy(0, 0),
 			vertex);
-		simpleTestGraph.start(ComponentMainThreadExecutorServiceAdapter.forMainThread());
-		return simpleTestGraph;
 	}
 
 }

@@ -487,7 +487,7 @@ public class JobMasterTest extends TestLogger {
 
 		@Nonnull
 		@Override
-		public SlotPool createSlotPool(@Nonnull JobID jobId) {
+		public SlotPool createSlotPool(@Nonnull JobID jobId, ComponentMainThreadExecutor componentMainThreadExecutor) {
 			return new TestingSlotPool(jobId, hasReceivedSlotOffers);
 		}
 	}
@@ -507,7 +507,7 @@ public class JobMasterTest extends TestLogger {
 		}
 
 		@Override
-		public void start(JobMasterId jobMasterId, String newJobManagerAddress, ComponentMainThreadExecutor jmMainThreadScheduledExecutor) {
+		public void start(JobMasterId jobMasterId, String newJobManagerAddress) {
 		}
 
 		@Override
@@ -1059,7 +1059,6 @@ public class JobMasterTest extends TestLogger {
 		configuration.setInteger(RestartStrategyOptions.RESTART_STRATEGY_FIXED_DELAY_ATTEMPTS, 1);
 		configuration.set(RestartStrategyOptions.RESTART_STRATEGY_FIXED_DELAY_DELAY, Duration.ofSeconds(0));
 		configuration.setString(JobManagerOptions.EXECUTION_FAILOVER_STRATEGY, "full");
-
 
 		final Function<List<List<InputSplit>>, Collection<InputSplit>> expectAllRemainingInputSplits = this::flattenCollection;
 

@@ -19,8 +19,6 @@
 package org.apache.flink.runtime.executiongraph;
 
 import org.apache.flink.api.common.JobStatus;
-import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
-import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutorServiceAdapter;
 import org.apache.flink.runtime.execution.ExecutionState;
 import org.apache.flink.runtime.execution.SuppressRestartsException;
 import org.apache.flink.runtime.executiongraph.metrics.RestartTimeGauge;
@@ -45,8 +43,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 public class ExecutionGraphMetricsTest extends TestLogger {
-
-	private final ComponentMainThreadExecutor mainThreadExecutor = ComponentMainThreadExecutorServiceAdapter.forMainThread();
 
 	/**
 	 * This test tests that the restarting time metric correctly displays restarting times.
@@ -79,8 +75,6 @@ public class ExecutionGraphMetricsTest extends TestLogger {
 				.setRestartStrategy(testingRestartStrategy)
 				.setSlotProvider(new TestingSlotProvider(ignore -> slotFutures.removeFirst()))
 				.build();
-
-			executionGraph.start(mainThreadExecutor);
 
 			RestartTimeGauge restartingTime = new RestartTimeGauge(executionGraph);
 

@@ -22,7 +22,6 @@ import org.apache.flink.api.common.time.Time;
 import org.apache.flink.runtime.clusterframework.types.AllocationID;
 import org.apache.flink.runtime.clusterframework.types.ResourceID;
 import org.apache.flink.runtime.clusterframework.types.ResourceProfile;
-import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
 import org.apache.flink.runtime.jobmanager.slots.TaskManagerGateway;
 import org.apache.flink.runtime.jobmaster.AllocatedSlotReport;
 import org.apache.flink.runtime.jobmaster.JobMasterId;
@@ -48,8 +47,7 @@ public interface SlotPool extends AllocatedSlotActions, AutoCloseable {
 
 	void start(
 		JobMasterId jobMasterId,
-		String newJobManagerAddress,
-		ComponentMainThreadExecutor jmMainThreadScheduledExecutor) throws Exception;
+		String newJobManagerAddress) throws Exception;
 
 	void suspend();
 

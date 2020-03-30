@@ -52,7 +52,6 @@ import org.apache.flink.util.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import java.io.IOException;
@@ -153,8 +152,7 @@ public class CheckpointCoordinator {
 	/** It can't be final for now because CheckpointCoordinator is created before
 	 * mainThreadExecutor. So here we keep behavior same with ExecutionGraph, use a dummy executor
 	 * in constructor and replace it with real main thread executor later. */
-	@Nonnull
-	private ComponentMainThreadExecutor mainThreadExecutor;
+	private final ComponentMainThreadExecutor mainThreadExecutor;
 
 	/** The master checkpoint hooks executed by this checkpoint coordinator. */
 	private final HashMap<String, MasterTriggerRestoreHook<?>> masterHooks;
@@ -221,7 +219,8 @@ public class CheckpointCoordinator {
 		Executor executor,
 		ScheduledExecutor timer,
 		SharedStateRegistryFactory sharedStateRegistryFactory,
-		CheckpointFailureManager failureManager) {
+		CheckpointFailureManager failureManager,
+		ComponentMainThreadExecutor mainThreadExecutor) {
 
 		this(
 			job,
@@ -237,6 +236,7 @@ public class CheckpointCoordinator {
 			timer,
 			sharedStateRegistryFactory,
 			failureManager,
+			mainThreadExecutor,
 			SystemClock.getInstance());
 	}
 
@@ -255,6 +255,7 @@ public class CheckpointCoordinator {
 			ScheduledExecutor timer,
 			SharedStateRegistryFactory sharedStateRegistryFactory,
 			CheckpointFailureManager failureManager,
+			ComponentMainThreadExecutor mainThreadExecutor,
 			Clock clock) {
 
 		// sanity checks
@@ -292,10 +293,7 @@ public class CheckpointCoordinator {
 		this.failureManager = checkNotNull(failureManager);
 		this.clock = checkNotNull(clock);
 
-		this.mainThreadExecutor =
-			new ComponentMainThreadExecutor.DummyComponentMainThreadExecutor(
-				"CheckpointCoordinator is not initialized with proper main thread executor. " +
-					"Call to CheckpointCoordinator.start(...) required.");
+		this.mainThreadExecutor = checkNotNull(mainThreadExecutor);
 
 		this.recentPendingCheckpoints = new ArrayDeque<>(NUM_GHOST_CHECKPOINT_IDS);
 		this.masterHooks = new HashMap<>();
@@ -324,19 +322,6 @@ public class CheckpointCoordinator {
 	// --------------------------------------------------------------------------------------------
 	//  Configuration
 	// --------------------------------------------------------------------------------------------
-
-	/**
-	 * Start the coordinator.
-	 *
-	 * <p>
-	 * The main thread executor is not initialized yet when the coordinator is created.
-	 * So this method is used to pass main thread executor when it's ready.
-	 * </p>
-	 * @param mainThreadExecutor the main thread executor
-	 */
-	public void start(ComponentMainThreadExecutor mainThreadExecutor) {
-		this.mainThreadExecutor = checkNotNull(mainThreadExecutor);
-	}
 
 	/**
 	 * Adds the given master hook to the checkpoint coordinator. This method does nothing, if
@@ -1679,9 +1664,7 @@ public class CheckpointCoordinator {
 	}
 
 	private void assertRunningMainThread() {
-		if (!(mainThreadExecutor instanceof ComponentMainThreadExecutor.DummyComponentMainThreadExecutor)) {
-			mainThreadExecutor.assertRunningInMainThread();
-		}
+		mainThreadExecutor.assertRunningInMainThread();
 	}
 
 	/**

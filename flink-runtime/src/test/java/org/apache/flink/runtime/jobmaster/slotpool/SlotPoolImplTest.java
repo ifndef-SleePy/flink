@@ -152,7 +152,7 @@ public class SlotPoolImplTest extends TestLogger {
 
 	@Nonnull
 	private SlotPoolImpl createSlotPoolImpl() {
-		return new TestingSlotPoolImpl(jobId);
+		return new TestingSlotPoolImpl(jobId, mainThreadExecutor);
 	}
 
 	@Test
@@ -558,6 +558,7 @@ public class SlotPoolImplTest extends TestLogger {
 	private TestingSlotPoolImpl createSlotPoolImpl(ManualClock clock) {
 		return new TestingSlotPoolImpl(
 			jobId,
+			mainThreadExecutor,
 			clock,
 			TestingUtils.infiniteTime(),
 			timeout,
@@ -806,7 +807,7 @@ public class SlotPoolImplTest extends TestLogger {
 		ComponentMainThreadExecutor mainThreadExecutable) throws Exception {
 		final String jobManagerAddress = "foobar";
 
-		slotPool.start(JobMasterId.generate(), jobManagerAddress, mainThreadExecutable);
+		slotPool.start(JobMasterId.generate(), jobManagerAddress);
 
 		slotPool.connectToResourceManager(resourceManagerGateway);
 	}
@@ -814,8 +815,6 @@ public class SlotPoolImplTest extends TestLogger {
 	private static Scheduler setupScheduler(
 		SlotPool slotPool,
 		ComponentMainThreadExecutor mainThreadExecutable) {
-		Scheduler scheduler = new SchedulerImpl(LocationPreferenceSlotSelectionStrategy.createDefault(), slotPool);
-		scheduler.start(mainThreadExecutable);
-		return scheduler;
+		return new SchedulerImpl(LocationPreferenceSlotSelectionStrategy.createDefault(), slotPool, mainThreadExecutable);
 	}
 }

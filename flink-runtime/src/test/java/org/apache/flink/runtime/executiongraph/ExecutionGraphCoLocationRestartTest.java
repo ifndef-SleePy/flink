@@ -77,9 +77,6 @@ public class ExecutionGraphCoLocationRestartTest extends SchedulerTestBase {
 			.setRestartStrategy(new TestRestartStrategy(1, false))
 			.build();
 
-		// enable the queued scheduling for the slot pool
-		eg.start(ComponentMainThreadExecutorServiceAdapter.forMainThread());
-
 		assertEquals(JobStatus.CREATED, eg.getState());
 
 		eg.scheduleForExecution();

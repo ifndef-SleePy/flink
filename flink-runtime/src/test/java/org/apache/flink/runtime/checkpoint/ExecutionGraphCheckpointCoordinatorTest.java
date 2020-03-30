@@ -167,8 +167,6 @@ public class ExecutionGraphCheckpointCoordinatorTest extends TestLogger {
 				new MemoryStateBackend(),
 				CheckpointStatsTrackerTest.createTestTracker());
 
-		executionGraph.start(ComponentMainThreadExecutorServiceAdapter.forMainThread());
-
 		return executionGraph;
 	}
 

@@ -23,6 +23,7 @@ import org.apache.flink.api.common.time.Time;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.JobManagerOptions;
 import org.apache.flink.runtime.akka.AkkaUtils;
+import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
 import org.apache.flink.runtime.util.clock.Clock;
 import org.apache.flink.runtime.util.clock.SystemClock;
 
@@ -58,13 +59,14 @@ public class DefaultSlotPoolFactory implements SlotPoolFactory {
 
 	@Override
 	@Nonnull
-	public SlotPool createSlotPool(@Nonnull JobID jobId) {
+	public SlotPool createSlotPool(@Nonnull JobID jobId, ComponentMainThreadExecutor componentMainThreadExecutor) {
 		return new SlotPoolImpl(
 			jobId,
 			clock,
 			rpcTimeout,
 			slotIdleTimeout,
-			batchSlotTimeout);
+			batchSlotTimeout,
+			componentMainThreadExecutor);
 	}
 
 	public static DefaultSlotPoolFactory fromConfiguration(@Nonnull Configuration configuration) {

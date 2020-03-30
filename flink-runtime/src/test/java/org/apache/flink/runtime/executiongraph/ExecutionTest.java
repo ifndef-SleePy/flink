@@ -20,7 +20,6 @@ package org.apache.flink.runtime.executiongraph;
 
 import org.apache.flink.runtime.checkpoint.JobManagerTaskRestore;
 import org.apache.flink.runtime.checkpoint.TaskStateSnapshot;
-import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutorServiceAdapter;
 import org.apache.flink.runtime.execution.ExecutionState;
 import org.apache.flink.runtime.executiongraph.restart.NoRestartStrategy;
 import org.apache.flink.runtime.executiongraph.utils.SimpleAckingTaskManagerGateway;
@@ -104,8 +103,6 @@ public class ExecutionTest extends TestLogger {
 			new NoRestartStrategy(),
 			jobVertex);
 
-		executionGraph.start(ComponentMainThreadExecutorServiceAdapter.forMainThread());
-
 		ExecutionJobVertex executionJobVertex = executionGraph.getJobVertex(jobVertexId);
 
 		final Execution execution = executionJobVertex.getTaskVertices()[0].getCurrentExecutionAttempt();
@@ -160,8 +157,6 @@ public class ExecutionTest extends TestLogger {
 			slotProvider,
 			new NoRestartStrategy(),
 			jobVertex);
-
-		executionGraph.start(ComponentMainThreadExecutorServiceAdapter.forMainThread());
 
 		ExecutionJobVertex executionJobVertex = executionGraph.getJobVertex(jobVertexId);
 
@@ -252,8 +247,6 @@ public class ExecutionTest extends TestLogger {
 			slotProvider,
 			new NoRestartStrategy(),
 			jobVertex);
-
-		executionGraph.start(ComponentMainThreadExecutorServiceAdapter.forMainThread());
 
 		final ExecutionJobVertex executionJobVertex = executionGraph.getJobVertex(jobVertexId);
 
@@ -360,8 +353,6 @@ public class ExecutionTest extends TestLogger {
 			new NoRestartStrategy(),
 			jobVertex);
 
-		executionGraph.start(ComponentMainThreadExecutorServiceAdapter.forMainThread());
-
 		ExecutionJobVertex executionJobVertex = executionGraph.getJobVertex(jobVertexId);
 
 		ExecutionVertex executionVertex = executionJobVertex.getTaskVertices()[0];
@@ -454,9 +445,8 @@ public class ExecutionTest extends TestLogger {
 		ExecutionGraph executionGraph = ExecutionGraphTestUtils.createSimpleTestGraph(
 			slotProvider,
 			new NoRestartStrategy(),
+			testMainThreadUtil.getMainThreadExecutor(),
 			jobVertex);
-
-		executionGraph.start(testMainThreadUtil.getMainThreadExecutor());
 
 		ExecutionJobVertex executionJobVertex = executionGraph.getJobVertex(jobVertexId);
 
@@ -520,11 +510,11 @@ public class ExecutionTest extends TestLogger {
 		final ExecutionGraph executionGraph = ExecutionGraphTestUtils.createSimpleTestGraph(
 			slotProvider,
 			new NoRestartStrategy(),
+			testMainThreadUtil.getMainThreadExecutor(),
 			jobVertex);
 
 		final Execution execution = executionGraph.getJobVertex(jobVertex.getID()).getTaskVertices()[0].getCurrentExecutionAttempt();
 
-		executionGraph.start(testMainThreadUtil.getMainThreadExecutor());
 		testMainThreadUtil.execute(executionGraph::scheduleForExecution);
 
 		// wait until the slot has been requested

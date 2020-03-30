@@ -158,7 +158,7 @@ public class ExecutionGraphRestartTest extends TestLogger {
 
 	@Nonnull
 	private SlotPoolImpl createSlotPoolImpl() {
-		return new TestingSlotPoolImpl(TEST_JOB_ID);
+		return new TestingSlotPoolImpl(TEST_JOB_ID, mainThreadExecutor);
 	}
 
 	@Test
@@ -768,7 +768,6 @@ public class ExecutionGraphRestartTest extends TestLogger {
 	// ------------------------------------------------------------------------
 
 	private static void startAndScheduleExecutionGraph(ExecutionGraph executionGraph) throws Exception {
-		executionGraph.start(mainThreadExecutor);
 		assertThat(executionGraph.getState(), is(JobStatus.CREATED));
 		executionGraph.scheduleForExecution();
 		assertThat(executionGraph.getState(), is(JobStatus.RUNNING));
@@ -785,8 +784,7 @@ public class ExecutionGraphRestartTest extends TestLogger {
 	private static Scheduler createSchedulerWithSlots(SlotPool slotPool, TaskManagerLocation taskManagerLocation, int numSlots) throws Exception {
 		final TaskManagerGateway taskManagerGateway = new SimpleAckingTaskManagerGateway();
 		setupSlotPool(slotPool);
-		Scheduler scheduler = new SchedulerImpl(LocationPreferenceSlotSelectionStrategy.createDefault(), slotPool);
-		scheduler.start(mainThreadExecutor);
+		Scheduler scheduler = new SchedulerImpl(LocationPreferenceSlotSelectionStrategy.createDefault(), slotPool, mainThreadExecutor);
 		slotPool.registerTaskManager(taskManagerLocation.getResourceID());
 
 		final List<SlotOffer> slotOffers = new ArrayList<>(NUM_TASKS);
@@ -804,7 +802,7 @@ public class ExecutionGraphRestartTest extends TestLogger {
 	private static void setupSlotPool(SlotPool slotPool) throws Exception {
 		final String jobManagerAddress = "foobar";
 		final ResourceManagerGateway resourceManagerGateway = new TestingResourceManagerGateway();
-		slotPool.start(JobMasterId.generate(), jobManagerAddress, mainThreadExecutor);
+		slotPool.start(JobMasterId.generate(), jobManagerAddress);
 		slotPool.connectToResourceManager(resourceManagerGateway);
 	}
 

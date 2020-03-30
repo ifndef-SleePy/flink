@@ -18,6 +18,8 @@
 
 package org.apache.flink.runtime.jobmaster.slotpool;
 
+import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
+
 import javax.annotation.Nonnull;
 
 /**
@@ -29,5 +31,5 @@ public interface SchedulerFactory {
 	 * Creates a new scheduler instance that uses the given {@link SlotPool} to allocate slots.
 	 */
 	@Nonnull
-	Scheduler createScheduler(@Nonnull SlotPool slotPool);
+	Scheduler createScheduler(@Nonnull SlotPool slotPool, ComponentMainThreadExecutor mainThreadExecutor);
 }

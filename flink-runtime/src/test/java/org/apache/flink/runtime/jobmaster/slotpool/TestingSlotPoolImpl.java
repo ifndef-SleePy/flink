@@ -23,6 +23,7 @@ import org.apache.flink.api.common.time.Time;
 import org.apache.flink.configuration.JobManagerOptions;
 import org.apache.flink.runtime.akka.AkkaUtils;
 import org.apache.flink.runtime.clusterframework.types.ResourceProfile;
+import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
 import org.apache.flink.runtime.jobmaster.SlotRequestId;
 import org.apache.flink.runtime.util.clock.Clock;
 import org.apache.flink.runtime.util.clock.SystemClock;
@@ -37,9 +38,10 @@ public class TestingSlotPoolImpl extends SlotPoolImpl {
 
 	private ResourceProfile lastRequestedSlotResourceProfile;
 
-	public TestingSlotPoolImpl(JobID jobId) {
+	public TestingSlotPoolImpl(JobID jobId, ComponentMainThreadExecutor componentMainThreadExecutor) {
 		this(
 			jobId,
+			componentMainThreadExecutor,
 			SystemClock.getInstance(),
 			AkkaUtils.getDefaultTimeout(),
 			AkkaUtils.getDefaultTimeout(),
@@ -48,11 +50,12 @@ public class TestingSlotPoolImpl extends SlotPoolImpl {
 
 	public TestingSlotPoolImpl(
 			JobID jobId,
+			ComponentMainThreadExecutor componentMainThreadExecutor,
 			Clock clock,
 			Time rpcTimeout,
 			Time idleSlotTimeout,
 			Time batchSlotTimeout) {
-		super(jobId, clock, rpcTimeout, idleSlotTimeout, batchSlotTimeout);
+		super(jobId, clock, rpcTimeout, idleSlotTimeout, batchSlotTimeout, componentMainThreadExecutor);
 	}
 
 	void triggerCheckIdleSlot() {

@@ -263,9 +263,8 @@ public class ExecutionPartitionLifecycleTest extends TestLogger {
 			Time.seconds(10),
 			log,
 			shuffleMaster,
-			partitionTracker);
-
-		executionGraph.start(ComponentMainThreadExecutorServiceAdapter.forMainThread());
+			partitionTracker,
+			ComponentMainThreadExecutorServiceAdapter.forMainThread());
 
 		final ExecutionJobVertex executionJobVertex = executionGraph.getJobVertex(producerVertex.getID());
 		final ExecutionVertex executionVertex = executionJobVertex.getTaskVertices()[0];

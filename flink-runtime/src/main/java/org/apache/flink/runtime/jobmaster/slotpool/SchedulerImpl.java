@@ -70,8 +70,7 @@ public class SchedulerImpl implements Scheduler {
 	private final SlotPool slotPool;
 
 	/** Executor for running tasks in the job master's main thread. */
-	@Nonnull
-	private ComponentMainThreadExecutor componentMainThreadExecutor;
+	private final ComponentMainThreadExecutor componentMainThreadExecutor;
 
 	/** Managers for the different slot sharing groups. */
 	@Nonnull
@@ -79,26 +78,21 @@ public class SchedulerImpl implements Scheduler {
 
 	public SchedulerImpl(
 		@Nonnull SlotSelectionStrategy slotSelectionStrategy,
-		@Nonnull SlotPool slotPool) {
-		this(slotSelectionStrategy, slotPool, new HashMap<>(DEFAULT_SLOT_SHARING_MANAGERS_MAP_SIZE));
+		@Nonnull SlotPool slotPool,
+		@Nonnull ComponentMainThreadExecutor mainThreadExecutor) {
+		this(slotSelectionStrategy, slotPool, new HashMap<>(DEFAULT_SLOT_SHARING_MANAGERS_MAP_SIZE), mainThreadExecutor);
 	}
 
 	@VisibleForTesting
 	public SchedulerImpl(
 		@Nonnull SlotSelectionStrategy slotSelectionStrategy,
 		@Nonnull SlotPool slotPool,
-		@Nonnull Map<SlotSharingGroupId, SlotSharingManager> slotSharingManagers) {
+		@Nonnull Map<SlotSharingGroupId, SlotSharingManager> slotSharingManagers,
+		@Nonnull ComponentMainThreadExecutor mainThreadExecutor) {
 
 		this.slotSelectionStrategy = slotSelectionStrategy;
 		this.slotSharingManagers = slotSharingManagers;
 		this.slotPool = slotPool;
-		this.componentMainThreadExecutor = new ComponentMainThreadExecutor.DummyComponentMainThreadExecutor(
-			"Scheduler is not initialized with proper main thread executor. " +
-				"Call to Scheduler.start(...) required.");
-	}
-
-	@Override
-	public void start(@Nonnull ComponentMainThreadExecutor mainThreadExecutor) {
 		this.componentMainThreadExecutor = mainThreadExecutor;
 	}
 

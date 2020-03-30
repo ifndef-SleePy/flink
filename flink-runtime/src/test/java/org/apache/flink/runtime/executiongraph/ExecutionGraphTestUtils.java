@@ -22,6 +22,7 @@ import org.apache.flink.api.common.JobStatus;
 import org.apache.flink.api.common.time.Deadline;
 import org.apache.flink.api.common.time.Time;
 import org.apache.flink.runtime.akka.AkkaUtils;
+import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
 import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutorServiceAdapter;
 import org.apache.flink.runtime.execution.ExecutionState;
 import org.apache.flink.runtime.executiongraph.restart.NoRestartStrategy;
@@ -345,6 +346,15 @@ public class ExecutionGraphTestUtils {
 		return createExecutionGraph(slotProvider, restartStrategy, TestingUtils.defaultExecutor(), vertices);
 	}
 
+	public static ExecutionGraph createSimpleTestGraph(
+		SlotProvider slotProvider,
+		RestartStrategy restartStrategy,
+		ComponentMainThreadExecutor mainThreadExecutor,
+		JobVertex... vertices) throws Exception {
+
+		return createExecutionGraph(slotProvider, restartStrategy, TestingUtils.defaultExecutor(), Time.seconds(10L), mainThreadExecutor, vertices);
+	}
+
 	public static ExecutionGraph createExecutionGraph(
 			SlotProvider slotProvider,
 			RestartStrategy restartStrategy,
@@ -361,6 +371,23 @@ public class ExecutionGraphTestUtils {
 			Time timeout,
 			JobVertex... vertices) throws Exception {
 
+		return createExecutionGraph(
+			slotProvider,
+			restartStrategy,
+			executor,
+			timeout,
+			ComponentMainThreadExecutorServiceAdapter.forMainThread(),
+			vertices);
+	}
+
+	public static ExecutionGraph createExecutionGraph(
+			SlotProvider slotProvider,
+			RestartStrategy restartStrategy,
+			ScheduledExecutorService executor,
+			Time timeout,
+			ComponentMainThreadExecutor mainThreadExecutor,
+			JobVertex... vertices) throws Exception {
+
 		checkNotNull(restartStrategy);
 		checkNotNull(vertices);
 		checkNotNull(timeout);
@@ -374,6 +401,7 @@ public class ExecutionGraphTestUtils {
 			.setAllocationTimeout(timeout)
 			.setRpcTimeout(timeout)
 			.setRestartStrategy(restartStrategy)
+			.setMainThreadExecutor(mainThreadExecutor)
 			.build();
 	}
 
@@ -436,8 +464,6 @@ public class ExecutionGraphTestUtils {
 			.setIoExecutor(executor)
 			.setFutureExecutor(executor)
 			.build();
-
-		graph.start(ComponentMainThreadExecutorServiceAdapter.forMainThread());
 
 		return new ExecutionJobVertex(graph, ajv, 1, AkkaUtils.getDefaultTimeout());
 	}

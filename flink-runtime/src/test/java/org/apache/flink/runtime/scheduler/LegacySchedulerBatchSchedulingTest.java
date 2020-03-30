@@ -22,6 +22,7 @@ import org.apache.flink.api.common.time.Time;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.blob.VoidBlobWriter;
 import org.apache.flink.runtime.checkpoint.StandaloneCheckpointRecoveryFactory;
+import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
 import org.apache.flink.runtime.executiongraph.restart.NoRestartStrategy;
 import org.apache.flink.runtime.io.network.partition.NoOpJobMasterPartitionTracker;
 import org.apache.flink.runtime.jobgraph.JobGraph;
@@ -40,7 +41,8 @@ public class LegacySchedulerBatchSchedulingTest extends BatchSchedulingTestBase 
 	protected LegacyScheduler createScheduler(
 			final JobGraph jobGraph,
 			final SlotProvider slotProvider,
-			final Time slotRequestTimeout) throws Exception {
+			final Time slotRequestTimeout,
+			final ComponentMainThreadExecutor mainThreadExecutor) throws Exception {
 
 		final LegacyScheduler legacyScheduler = new LegacyScheduler(
 			log,
@@ -58,7 +60,8 @@ public class LegacySchedulerBatchSchedulingTest extends BatchSchedulingTestBase 
 			UnregisteredMetricGroups.createUnregisteredJobManagerJobMetricGroup(),
 			slotRequestTimeout,
 			NettyShuffleMaster.INSTANCE,
-			NoOpJobMasterPartitionTracker.INSTANCE);
+			NoOpJobMasterPartitionTracker.INSTANCE,
+			mainThreadExecutor);
 
 		return legacyScheduler;
 	}

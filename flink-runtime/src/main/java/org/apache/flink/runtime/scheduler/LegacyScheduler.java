@@ -23,6 +23,7 @@ import org.apache.flink.api.common.time.Time;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.blob.BlobWriter;
 import org.apache.flink.runtime.checkpoint.CheckpointRecoveryFactory;
+import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
 import org.apache.flink.runtime.executiongraph.ExecutionGraph;
 import org.apache.flink.runtime.executiongraph.restart.RestartStrategyFactory;
 import org.apache.flink.runtime.io.network.partition.JobMasterPartitionTracker;
@@ -60,7 +61,8 @@ public class LegacyScheduler extends SchedulerBase {
 			final JobManagerJobMetricGroup jobManagerJobMetricGroup,
 			final Time slotRequestTimeout,
 			final ShuffleMaster<?> shuffleMaster,
-			final JobMasterPartitionTracker partitionTracker) throws Exception {
+			final JobMasterPartitionTracker partitionTracker,
+			final ComponentMainThreadExecutor mainThreadExecutor) throws Exception {
 
 		super(
 			log,
@@ -80,7 +82,8 @@ public class LegacyScheduler extends SchedulerBase {
 			shuffleMaster,
 			partitionTracker,
 			new ExecutionVertexVersioner(),
-			true);
+			true,
+			mainThreadExecutor);
 	}
 
 	@Override

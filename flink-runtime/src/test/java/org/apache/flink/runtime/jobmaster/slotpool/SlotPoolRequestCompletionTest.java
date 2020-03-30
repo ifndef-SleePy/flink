@@ -121,9 +121,9 @@ public class SlotPoolRequestCompletionTest extends TestLogger {
 	}
 
 	private SlotPoolImpl setUpSlotPool() throws Exception {
-		final SlotPoolImpl slotPool = new TestingSlotPoolImpl(new JobID());
+		final SlotPoolImpl slotPool = new TestingSlotPoolImpl(new JobID(), ComponentMainThreadExecutorServiceAdapter.forMainThread());
 
-		slotPool.start(JobMasterId.generate(), "foobar", ComponentMainThreadExecutorServiceAdapter.forMainThread());
+		slotPool.start(JobMasterId.generate(), "foobar");
 
 		return slotPool;
 	}

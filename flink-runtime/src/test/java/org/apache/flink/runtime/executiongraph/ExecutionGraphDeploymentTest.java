@@ -173,9 +173,8 @@ public class ExecutionGraphDeploymentTest extends TestLogger {
 				.setIoExecutor(executor)
 				.setSlotProvider(new TestingSlotProvider(ignore -> new CompletableFuture<>()))
 				.setBlobWriter(blobWriter)
+				.setMainThreadExecutor(ComponentMainThreadExecutorServiceAdapter.forMainThread())
 				.build();
-
-			eg.start(ComponentMainThreadExecutorServiceAdapter.forMainThread());
 
 			checkJobOffloaded(eg);
 
@@ -460,9 +459,8 @@ public class ExecutionGraphDeploymentTest extends TestLogger {
 			.setFutureExecutor(directExecutor)
 			.setSlotProvider(slotProvider)
 			.setBlobWriter(blobWriter)
+			.setMainThreadExecutor(ComponentMainThreadExecutorServiceAdapter.forMainThread())
 			.build();
-
-		eg.start(ComponentMainThreadExecutorServiceAdapter.forMainThread());
 
 		checkJobOffloaded(eg);
 
@@ -529,11 +527,10 @@ public class ExecutionGraphDeploymentTest extends TestLogger {
 			.setFutureExecutor(executorService)
 			.setSlotProvider(slotProvider)
 			.setBlobWriter(blobWriter)
+			.setMainThreadExecutor(ComponentMainThreadExecutorServiceAdapter.forMainThread())
 			.build();
 
 		checkJobOffloaded(eg);
-
-		eg.start(ComponentMainThreadExecutorServiceAdapter.forMainThread());
 
 		List<JobVertex> ordered = Arrays.asList(v1, v2);
 		eg.attachJobGraph(ordered);
@@ -615,7 +612,6 @@ public class ExecutionGraphDeploymentTest extends TestLogger {
 			.setRpcTimeout(timeout)
 			.build();
 
-		executionGraph.start(ComponentMainThreadExecutorServiceAdapter.forMainThread());
 		executionGraph.scheduleForExecution();
 
 		// all tasks should be in state SCHEDULED
@@ -701,8 +697,6 @@ public class ExecutionGraphDeploymentTest extends TestLogger {
 			.setSlotProvider(slotProvider)
 			.setFutureExecutor(new DirectScheduledExecutorService())
 			.build();
-
-		executionGraph.start(ComponentMainThreadExecutorServiceAdapter.forMainThread());
 
 		executionGraph.scheduleForExecution();
 
@@ -801,7 +795,8 @@ public class ExecutionGraphDeploymentTest extends TestLogger {
 			timeout,
 			LoggerFactory.getLogger(getClass()),
 			NettyShuffleMaster.INSTANCE,
-			NoOpJobMasterPartitionTracker.INSTANCE);
+			NoOpJobMasterPartitionTracker.INSTANCE,
+			ComponentMainThreadExecutorServiceAdapter.forMainThread());
 	}
 
 	private static final class ExecutionStageMatcher extends TypeSafeMatcher<List<ExecutionAttemptID>> {

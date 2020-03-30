@@ -29,6 +29,8 @@ import org.apache.flink.runtime.blob.VoidBlobWriter;
 import org.apache.flink.runtime.checkpoint.CheckpointRecoveryFactory;
 import org.apache.flink.runtime.checkpoint.StandaloneCheckpointRecoveryFactory;
 import org.apache.flink.runtime.client.JobExecutionException;
+import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
+import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutorServiceAdapter;
 import org.apache.flink.runtime.executiongraph.failover.FailoverStrategy;
 import org.apache.flink.runtime.executiongraph.failover.RestartAllStrategy;
 import org.apache.flink.runtime.executiongraph.restart.NoRestartStrategy;
@@ -75,6 +77,7 @@ public class TestingExecutionGraphBuilder {
 	private JobGraph jobGraph = new JobGraph();
 	private MetricGroup metricGroup = new UnregisteredMetricsGroup();
 	private CheckpointRecoveryFactory checkpointRecoveryFactory = new StandaloneCheckpointRecoveryFactory();
+	private ComponentMainThreadExecutor mainThreadExecutor = ComponentMainThreadExecutorServiceAdapter.forMainThread();
 
 	private TestingExecutionGraphBuilder() {
 
@@ -155,6 +158,11 @@ public class TestingExecutionGraphBuilder {
 		return this;
 	}
 
+	public TestingExecutionGraphBuilder setMainThreadExecutor(ComponentMainThreadExecutor mainThreadExecutor) {
+		this.mainThreadExecutor = mainThreadExecutor;
+		return this;
+	}
+
 	public ExecutionGraph build() throws JobException, JobExecutionException {
 		return ExecutionGraphBuilder.buildGraph(
 			null,
@@ -173,7 +181,8 @@ public class TestingExecutionGraphBuilder {
 			LOG,
 			shuffleMaster,
 			partitionTracker,
-			failoverStrategyFactory);
+			failoverStrategyFactory,
+			mainThreadExecutor);
 	}
 
 }

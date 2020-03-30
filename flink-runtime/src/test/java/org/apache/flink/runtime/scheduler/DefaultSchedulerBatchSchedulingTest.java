@@ -19,6 +19,7 @@
 package org.apache.flink.runtime.scheduler;
 
 import org.apache.flink.api.common.time.Time;
+import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
 import org.apache.flink.runtime.jobgraph.JobGraph;
 import org.apache.flink.runtime.jobmaster.slotpool.SlotProvider;
 
@@ -31,8 +32,9 @@ public class DefaultSchedulerBatchSchedulingTest extends BatchSchedulingTestBase
 	protected DefaultScheduler createScheduler(
 			final JobGraph jobGraph,
 			final SlotProvider slotProvider,
-			final Time slotRequestTimeout) throws Exception {
+			final Time slotRequestTimeout,
+			final ComponentMainThreadExecutor mainThreadExecutor) throws Exception {
 
-		return SchedulerTestingUtils.createScheduler(jobGraph, slotProvider, slotRequestTimeout);
+		return SchedulerTestingUtils.createScheduler(jobGraph, slotProvider, slotRequestTimeout, mainThreadExecutor);
 	}
 }

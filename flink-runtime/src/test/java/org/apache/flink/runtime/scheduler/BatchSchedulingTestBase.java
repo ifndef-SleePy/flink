@@ -119,7 +119,7 @@ public abstract class BatchSchedulingTestBase extends TestLogger {
 				new RpcTaskManagerGateway(testingTaskExecutorGateway, JobMasterId.generate()));
 
 			final SlotProvider slotProvider = createSlotProvider(slotPool, mainThreadExecutor);
-			final SchedulerNG scheduler = createScheduler(jobGraph, slotProvider, batchSlotTimeout);
+			final SchedulerNG scheduler = createScheduler(jobGraph, slotProvider, batchSlotTimeout, mainThreadExecutor);
 
 			final GloballyTerminalJobStatusListener jobStatusListener = new GloballyTerminalJobStatusListener();
 			scheduler.registerJobStatusListener(jobStatusListener);
@@ -162,14 +162,11 @@ public abstract class BatchSchedulingTestBase extends TestLogger {
 
 	@Nonnull
 	private SlotProvider createSlotProvider(SlotPool slotPool, ComponentMainThreadExecutor mainThreadExecutor) {
-		final SchedulerImpl scheduler = new SchedulerImpl(LocationPreferenceSlotSelectionStrategy.createDefault(), slotPool);
-		scheduler.start(mainThreadExecutor);
 
-		return scheduler;
+		return new SchedulerImpl(LocationPreferenceSlotSelectionStrategy.createDefault(), slotPool, mainThreadExecutor);
 	}
 
 	private void startScheduling(SchedulerNG scheduler, ComponentMainThreadExecutor mainThreadExecutor) {
-		scheduler.setMainThreadExecutor(mainThreadExecutor);
 		CompletableFuture.runAsync(
 			scheduler::startScheduling,
 			mainThreadExecutor)
@@ -205,5 +202,5 @@ public abstract class BatchSchedulingTestBase extends TestLogger {
 		}
 	}
 
-	protected abstract SchedulerNG createScheduler(JobGraph jobGraph, SlotProvider slotProvider, Time slotRequestTimeout) throws Exception;
+	protected abstract SchedulerNG createScheduler(JobGraph jobGraph, SlotProvider slotProvider, Time slotRequestTimeout, ComponentMainThreadExecutor mainThreadExecutor) throws Exception;
 }

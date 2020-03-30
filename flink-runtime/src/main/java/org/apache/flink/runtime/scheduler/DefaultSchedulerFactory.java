@@ -23,6 +23,7 @@ import org.apache.flink.api.common.time.Time;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.blob.BlobWriter;
 import org.apache.flink.runtime.checkpoint.CheckpointRecoveryFactory;
+import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
 import org.apache.flink.runtime.concurrent.ScheduledExecutorServiceAdapter;
 import org.apache.flink.runtime.executiongraph.SlotProviderStrategy;
 import org.apache.flink.runtime.executiongraph.failover.flip1.FailoverStrategyFactoryLoader;
@@ -65,7 +66,8 @@ public class DefaultSchedulerFactory implements SchedulerNGFactory {
 			final JobManagerJobMetricGroup jobManagerJobMetricGroup,
 			final Time slotRequestTimeout,
 			final ShuffleMaster<?> shuffleMaster,
-			final JobMasterPartitionTracker partitionTracker) throws Exception {
+			final JobMasterPartitionTracker partitionTracker,
+			final ComponentMainThreadExecutor mainThreadExecutor) throws Exception {
 
 		final SchedulingStrategyFactory schedulingStrategyFactory = createSchedulingStrategyFactory(jobGraph.getScheduleMode());
 		final RestartBackoffTimeStrategy restartBackoffTimeStrategy = RestartBackoffTimeStrategyFactoryLoader
@@ -104,7 +106,8 @@ public class DefaultSchedulerFactory implements SchedulerNGFactory {
 			restartBackoffTimeStrategy,
 			new DefaultExecutionVertexOperations(),
 			new ExecutionVertexVersioner(),
-			new DefaultExecutionSlotAllocatorFactory(slotProviderStrategy));
+			new DefaultExecutionSlotAllocatorFactory(slotProviderStrategy),
+			mainThreadExecutor);
 	}
 
 	static SchedulingStrategyFactory createSchedulingStrategyFactory(final ScheduleMode scheduleMode) {

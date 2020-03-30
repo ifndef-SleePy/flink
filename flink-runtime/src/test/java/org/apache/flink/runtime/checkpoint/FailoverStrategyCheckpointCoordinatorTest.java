@@ -92,9 +92,7 @@ public class FailoverStrategyCheckpointCoordinatorTest extends TestLogger {
 			Executors.directExecutor(),
 			timer,
 			SharedStateRegistry.DEFAULT_FACTORY,
-			mock(CheckpointFailureManager.class));
-
-		checkpointCoordinator.start(
+			mock(CheckpointFailureManager.class),
 			new ComponentMainThreadExecutorServiceAdapter(
 				mainThreadExecutor,
 				Thread.currentThread()));

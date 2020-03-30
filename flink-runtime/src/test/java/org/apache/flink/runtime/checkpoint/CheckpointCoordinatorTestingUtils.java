@@ -773,7 +773,7 @@ public class CheckpointCoordinatorTestingUtils {
 		}
 
 		public CheckpointCoordinator build() {
-			final CheckpointCoordinator checkpointCoordinator = new CheckpointCoordinator(
+			return new CheckpointCoordinator(
 				jobId,
 				checkpointCoordinatorConfiguration,
 				tasksToTrigger,
@@ -786,12 +786,10 @@ public class CheckpointCoordinatorTestingUtils {
 				ioExecutor,
 				timer,
 				sharedStateRegistryFactory,
-				failureManager);
-			checkpointCoordinator.start(
+				failureManager,
 				new ComponentMainThreadExecutorServiceAdapter(
 					mainThreadExecutor,
 					Thread.currentThread()));
-			return checkpointCoordinator;
 		}
 	}
 

@@ -396,9 +396,9 @@ public class AdaptedRestartPipelinedRegionStrategyNGFailoverTest extends TestLog
 			.setRestartStrategy(restartStrategy)
 			.setFailoverStrategyFactory(TestAdaptedRestartPipelinedRegionStrategyNG::new)
 			.setPartitionTracker(partitionTracker)
+			.setMainThreadExecutor(componentMainThreadExecutor)
 			.build();
 
-		eg.start(componentMainThreadExecutor);
 		eg.scheduleForExecution();
 		manualMainThreadExecutor.triggerAll();
 

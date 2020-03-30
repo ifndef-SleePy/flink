@@ -457,7 +457,7 @@ public class CheckpointCoordinatorMasterHooksTest {
 			true,
 			false,
 			0);
-		final CheckpointCoordinator checkpointCoordinator = new CheckpointCoordinator(
+		return new CheckpointCoordinator(
 				jid,
 				chkConfig,
 				new ExecutionVertex[0],
@@ -472,12 +472,10 @@ public class CheckpointCoordinatorMasterHooksTest {
 				SharedStateRegistry.DEFAULT_FACTORY,
 				new CheckpointFailureManager(
 					0,
-					NoOpFailJobCall.INSTANCE));
-		checkpointCoordinator.start(
-			new ComponentMainThreadExecutorServiceAdapter(
-				mainThreadExecutor,
-				Thread.currentThread()));
-		return checkpointCoordinator;
+					NoOpFailJobCall.INSTANCE),
+				new ComponentMainThreadExecutorServiceAdapter(
+					mainThreadExecutor,
+					Thread.currentThread()));
 	}
 
 	private static <T> T mockGeneric(Class<?> clazz) {

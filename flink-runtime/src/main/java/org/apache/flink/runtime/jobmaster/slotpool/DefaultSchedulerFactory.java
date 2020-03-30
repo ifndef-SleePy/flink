@@ -21,6 +21,7 @@ package org.apache.flink.runtime.jobmaster.slotpool;
 import org.apache.flink.configuration.CheckpointingOptions;
 import org.apache.flink.configuration.ClusterOptions;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
 
 import javax.annotation.Nonnull;
 
@@ -38,8 +39,8 @@ public class DefaultSchedulerFactory implements SchedulerFactory {
 
 	@Nonnull
 	@Override
-	public Scheduler createScheduler(@Nonnull SlotPool slotPool) {
-		return new SchedulerImpl(slotSelectionStrategy, slotPool);
+	public Scheduler createScheduler(@Nonnull SlotPool slotPool, ComponentMainThreadExecutor mainThreadExecutor) {
+		return new SchedulerImpl(slotSelectionStrategy, slotPool, mainThreadExecutor);
 	}
 
 	@Nonnull

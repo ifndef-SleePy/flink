@@ -36,6 +36,7 @@ import org.apache.flink.runtime.checkpoint.MasterTriggerRestoreHook;
 import org.apache.flink.runtime.checkpoint.hooks.MasterHooks;
 import org.apache.flink.runtime.client.JobExecutionException;
 import org.apache.flink.runtime.client.JobSubmissionException;
+import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
 import org.apache.flink.runtime.executiongraph.failover.FailoverStrategy;
 import org.apache.flink.runtime.executiongraph.failover.FailoverStrategyLoader;
 import org.apache.flink.runtime.executiongraph.failover.flip1.partitionrelease.PartitionReleaseStrategy;
@@ -97,7 +98,8 @@ public class ExecutionGraphBuilder {
 			Time allocationTimeout,
 			Logger log,
 			ShuffleMaster<?> shuffleMaster,
-			JobMasterPartitionTracker partitionTracker) throws JobExecutionException, JobException {
+			JobMasterPartitionTracker partitionTracker,
+			ComponentMainThreadExecutor mainThreadExecutor) throws JobExecutionException, JobException {
 
 		final FailoverStrategy.Factory failoverStrategy =
 			FailoverStrategyLoader.loadFailoverStrategy(jobManagerConfig, log);
@@ -119,7 +121,8 @@ public class ExecutionGraphBuilder {
 			log,
 			shuffleMaster,
 			partitionTracker,
-			failoverStrategy);
+			failoverStrategy,
+			mainThreadExecutor);
 	}
 
 	public static ExecutionGraph buildGraph(
@@ -139,7 +142,8 @@ public class ExecutionGraphBuilder {
 		Logger log,
 		ShuffleMaster<?> shuffleMaster,
 		JobMasterPartitionTracker partitionTracker,
-		FailoverStrategy.Factory failoverStrategyFactory) throws JobExecutionException, JobException {
+		FailoverStrategy.Factory failoverStrategyFactory,
+		ComponentMainThreadExecutor mainThreadExecutor) throws JobExecutionException, JobException {
 
 		checkNotNull(jobGraph, "job graph cannot be null");
 
@@ -179,7 +183,8 @@ public class ExecutionGraphBuilder {
 					partitionReleaseStrategyFactory,
 					shuffleMaster,
 					partitionTracker,
-					jobGraph.getScheduleMode());
+					jobGraph.getScheduleMode(),
+					mainThreadExecutor);
 		} catch (IOException e) {
 			throw new JobException("Could not create the ExecutionGraph.", e);
 		}

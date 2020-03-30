@@ -21,7 +21,6 @@ package org.apache.flink.runtime.jobmaster.slotpool;
 import org.apache.flink.api.common.JobID;
 import org.apache.flink.api.common.time.Time;
 import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
-import org.apache.flink.runtime.jobmaster.JobMasterId;
 import org.apache.flink.runtime.resourcemanager.ResourceManagerGateway;
 import org.apache.flink.runtime.resourcemanager.utils.TestingResourceManagerGateway;
 import org.apache.flink.runtime.testingUtils.TestingUtils;
@@ -62,12 +61,11 @@ public class SlotPoolBuilder {
 	public TestingSlotPoolImpl build() throws Exception {
 		final TestingSlotPoolImpl slotPool = new TestingSlotPoolImpl(
 			new JobID(),
+			componentMainThreadExecutor,
 			clock,
 			TestingUtils.infiniteTime(),
 			TestingUtils.infiniteTime(),
 			batchSlotTimeout);
-
-		slotPool.start(JobMasterId.generate(), "foobar", componentMainThreadExecutor);
 
 		CompletableFuture.runAsync(() -> slotPool.connectToResourceManager(resourceManagerGateway), componentMainThreadExecutor).join();
 

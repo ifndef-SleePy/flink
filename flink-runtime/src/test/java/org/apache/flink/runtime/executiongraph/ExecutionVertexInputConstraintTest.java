@@ -20,8 +20,6 @@ package org.apache.flink.runtime.executiongraph;
 
 import org.apache.flink.api.common.InputDependencyConstraint;
 import org.apache.flink.api.common.JobStatus;
-import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
-import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutorServiceAdapter;
 import org.apache.flink.runtime.execution.ExecutionState;
 import org.apache.flink.runtime.executiongraph.utils.SimpleSlotProvider;
 import org.apache.flink.runtime.io.network.partition.ResultPartitionID;
@@ -55,8 +53,6 @@ import static org.junit.Assert.assertTrue;
  */
 public class ExecutionVertexInputConstraintTest extends TestLogger {
 
-	private ComponentMainThreadExecutor mainThreadExecutor = ComponentMainThreadExecutorServiceAdapter.forMainThread();
-
 	@Test
 	public void testInputConsumable() throws Exception {
 		List<JobVertex> vertices = createOrderedVertices();
@@ -66,8 +62,6 @@ public class ExecutionVertexInputConstraintTest extends TestLogger {
 		ExecutionVertex ev22 = eg.getJobVertex(vertices.get(1).getID()).getTaskVertices()[1];
 		ExecutionVertex ev31 = eg.getJobVertex(vertices.get(2).getID()).getTaskVertices()[0];
 		ExecutionVertex ev32 = eg.getJobVertex(vertices.get(2).getID()).getTaskVertices()[1];
-
-		eg.start(mainThreadExecutor);
 
 		eg.scheduleForExecution();
 
@@ -108,7 +102,6 @@ public class ExecutionVertexInputConstraintTest extends TestLogger {
 		ExecutionVertex ev22 = eg.getJobVertex(vertices.get(1).getID()).getTaskVertices()[1];
 		ExecutionVertex ev31 = eg.getJobVertex(vertices.get(2).getID()).getTaskVertices()[0];
 
-		eg.start(mainThreadExecutor);
 		eg.scheduleForExecution();
 
 		// Inputs constraint not satisfied on init
@@ -145,7 +138,6 @@ public class ExecutionVertexInputConstraintTest extends TestLogger {
 		ExecutionVertex ev22 = eg.getJobVertex(vertices.get(1).getID()).getTaskVertices()[1];
 		ExecutionVertex ev31 = eg.getJobVertex(vertices.get(2).getID()).getTaskVertices()[0];
 
-		eg.start(mainThreadExecutor);
 		eg.scheduleForExecution();
 
 		// Inputs constraint not satisfied on init
@@ -181,7 +173,6 @@ public class ExecutionVertexInputConstraintTest extends TestLogger {
 
 		final ExecutionGraph eg = createExecutionGraph(Arrays.asList(v1, v2, v3), InputDependencyConstraint.ALL, 3000);
 
-		eg.start(mainThreadExecutor);
 		eg.scheduleForExecution();
 
 		for (int i = 0; i < parallelism - 1; i++) {

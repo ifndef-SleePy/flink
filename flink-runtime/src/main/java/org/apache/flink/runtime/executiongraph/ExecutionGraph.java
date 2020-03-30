@@ -181,8 +181,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	private final Executor ioExecutor;
 
 	/** Executor that runs tasks in the job manager's main thread. */
-	@Nonnull
-	private ComponentMainThreadExecutor jobMasterMainThreadExecutor;
+	private final ComponentMainThreadExecutor jobMasterMainThreadExecutor;
 
 	/** {@code true} if all source tasks are stoppable. */
 	private boolean isStoppable = true;
@@ -335,7 +334,8 @@ public class ExecutionGraph implements AccessExecutionGraph {
 			PartitionReleaseStrategy.Factory partitionReleaseStrategyFactory,
 			ShuffleMaster<?> shuffleMaster,
 			JobMasterPartitionTracker partitionTracker,
-			ScheduleMode scheduleMode) throws IOException {
+			ScheduleMode scheduleMode,
+			ComponentMainThreadExecutor mainThreadExecutor) throws IOException {
 
 		this.jobInformation = Preconditions.checkNotNull(jobInformation);
 
@@ -381,10 +381,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 		this.maxPriorAttemptsHistoryLength = maxPriorAttemptsHistoryLength;
 
 		this.schedulingFuture = null;
-		this.jobMasterMainThreadExecutor =
-			new ComponentMainThreadExecutor.DummyComponentMainThreadExecutor(
-				"ExecutionGraph is not initialized with proper main thread executor. " +
-					"Call to ExecutionGraph.start(...) required.");
+		this.jobMasterMainThreadExecutor = checkNotNull(mainThreadExecutor);
 
 		this.shuffleMaster = checkNotNull(shuffleMaster);
 
@@ -393,13 +390,6 @@ public class ExecutionGraph implements AccessExecutionGraph {
 		this.resultPartitionAvailabilityChecker = new ExecutionGraphResultPartitionAvailabilityChecker(
 			this::createResultPartitionId,
 			partitionTracker);
-	}
-
-	public void start(@Nonnull ComponentMainThreadExecutor jobMasterMainThreadExecutor) {
-		this.jobMasterMainThreadExecutor = jobMasterMainThreadExecutor;
-		if (checkpointCoordinator != null) {
-			checkpointCoordinator.start(this.jobMasterMainThreadExecutor);
-		}
 	}
 
 	// --------------------------------------------------------------------------------------------
@@ -502,7 +492,8 @@ public class ExecutionGraph implements AccessExecutionGraph {
 			ioExecutor,
 			new ScheduledExecutorServiceAdapter(checkpointCoordinatorTimer),
 			SharedStateRegistry.DEFAULT_FACTORY,
-			failureManager);
+			failureManager,
+			jobMasterMainThreadExecutor);
 
 		// register the master hooks on the checkpoint coordinator
 		for (MasterTriggerRestoreHook<?> hook : masterHooks) {
@@ -1716,9 +1707,7 @@ public class ExecutionGraph implements AccessExecutionGraph {
 	}
 
 	void assertRunningInJobMasterMainThread() {
-		if (!(jobMasterMainThreadExecutor instanceof ComponentMainThreadExecutor.DummyComponentMainThreadExecutor)) {
-			jobMasterMainThreadExecutor.assertRunningInMainThread();
-		}
+		jobMasterMainThreadExecutor.assertRunningInMainThread();
 	}
 
 	void notifySchedulerNgAboutInternalTaskFailure(final ExecutionAttemptID attemptId, final Throwable t) {

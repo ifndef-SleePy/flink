@@ -30,6 +30,8 @@ import org.apache.flink.runtime.checkpoint.CheckpointRetentionPolicy;
 import org.apache.flink.runtime.checkpoint.CompletedCheckpoint;
 import org.apache.flink.runtime.checkpoint.PendingCheckpoint;
 import org.apache.flink.runtime.checkpoint.StandaloneCheckpointRecoveryFactory;
+import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
+import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutorServiceAdapter;
 import org.apache.flink.runtime.concurrent.ManuallyTriggeredScheduledExecutorService;
 import org.apache.flink.runtime.concurrent.ScheduledExecutor;
 import org.apache.flink.runtime.concurrent.ScheduledExecutorServiceAdapter;
@@ -131,6 +133,17 @@ public class SchedulerTestingUtils {
 			final Time slotRequestTimeout) throws Exception {
 
 		return newSchedulerBuilderWithDefaultSlotAllocator(jobGraph, slotProvider, slotRequestTimeout)
+			.build();
+	}
+
+	public static DefaultScheduler createScheduler(
+		final JobGraph jobGraph,
+		final SlotProvider slotProvider,
+		final Time slotRequestTimeout,
+		final ComponentMainThreadExecutor mainThreadExecutor) throws Exception {
+
+		return newSchedulerBuilderWithDefaultSlotAllocator(jobGraph, slotProvider, slotRequestTimeout)
+			.setMainThreadExecutor(mainThreadExecutor)
 			.build();
 	}
 
@@ -294,6 +307,7 @@ public class SchedulerTestingUtils {
 		private ExecutionVertexOperations executionVertexOperations = new DefaultExecutionVertexOperations();
 		private ExecutionVertexVersioner executionVertexVersioner = new ExecutionVertexVersioner();
 		private ExecutionSlotAllocatorFactory executionSlotAllocatorFactory = new TestExecutionSlotAllocatorFactory();
+		private ComponentMainThreadExecutor mainThreadExecutor = ComponentMainThreadExecutorServiceAdapter.forMainThread();
 
 		private DefaultSchedulerBuilder(final JobGraph jobGraph) {
 			this.jobGraph = jobGraph;
@@ -397,6 +411,11 @@ public class SchedulerTestingUtils {
 			return this;
 		}
 
+		public DefaultSchedulerBuilder setMainThreadExecutor(ComponentMainThreadExecutor mainThreadExecutor) {
+			this.mainThreadExecutor = mainThreadExecutor;
+			return this;
+		}
+
 		public DefaultScheduler build() throws Exception {
 			return new DefaultScheduler(
 				log,
@@ -418,7 +437,8 @@ public class SchedulerTestingUtils {
 				restartBackoffTimeStrategy,
 				executionVertexOperations,
 				executionVertexVersioner,
-				executionSlotAllocatorFactory);
+				executionSlotAllocatorFactory,
+				mainThreadExecutor);
 		}
 	}
 }

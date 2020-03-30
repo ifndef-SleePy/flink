@@ -130,7 +130,6 @@ public class ExecutionGraphSchedulingTest extends TestLogger {
 		slotProvider.addSlot(targetVertex.getID(), 0, targetFuture);
 
 		final ExecutionGraph eg = createExecutionGraph(jobGraph, slotProvider);
-		eg.start(ComponentMainThreadExecutorServiceAdapter.forMainThread());
 
 		//  set up two TaskManager gateways and slots
 
@@ -235,7 +234,6 @@ public class ExecutionGraphSchedulingTest extends TestLogger {
 
 		//
 		//  kick off the scheduling
-		eg.start(ComponentMainThreadExecutorServiceAdapter.forMainThread());
 		eg.scheduleForExecution();
 
 		verifyNothingDeployed(eg, sourceTaskManagers);
@@ -321,7 +319,6 @@ public class ExecutionGraphSchedulingTest extends TestLogger {
 		slotProvider.addSlots(targetVertex.getID(), targetFutures);
 
 		final ExecutionGraph eg = createExecutionGraph(jobGraph, slotProvider);
-		eg.start(ComponentMainThreadExecutorServiceAdapter.forMainThread());
 
 		//
 		//  we complete some of the futures
@@ -398,7 +395,6 @@ public class ExecutionGraphSchedulingTest extends TestLogger {
 		slotFutures[1].complete(slots[1]);
 
 		//  kick off the scheduling
-		eg.start(ComponentMainThreadExecutorServiceAdapter.forMainThread());
 		eg.scheduleForExecution();
 
 		//  we complete another future
@@ -439,7 +435,6 @@ public class ExecutionGraphSchedulingTest extends TestLogger {
 		slotProvider.addSlots(jobVertex.getID(), new CompletableFuture[]{slotFuture1, slotFuture2});
 		final ExecutionGraph executionGraph = createExecutionGraph(jobGraph, slotProvider);
 
-		executionGraph.start(ComponentMainThreadExecutorServiceAdapter.forMainThread());
 		executionGraph.scheduleForExecution();
 
 		final TestingLogicalSlot slot = createTestingSlot();
@@ -485,7 +480,6 @@ public class ExecutionGraphSchedulingTest extends TestLogger {
 
 		final ExecutionGraph executionGraph = createExecutionGraph(jobGraph, slotProvider);
 
-		executionGraph.start(ComponentMainThreadExecutorServiceAdapter.forMainThread());
 		executionGraph.scheduleForExecution();
 
 		assertThat(executionGraph.getState(), is(JobStatus.RUNNING));
@@ -533,7 +527,6 @@ public class ExecutionGraphSchedulingTest extends TestLogger {
 
 		final ExecutionGraph executionGraph = createExecutionGraph(jobGraph, slotProvider);
 
-		executionGraph.start(ComponentMainThreadExecutorServiceAdapter.forMainThread());
 		final Set<SlotRequestId> slotRequestIdsToReturn = ConcurrentHashMap.newKeySet(slotRequestIds.size());
 
 		executionGraph.scheduleForExecution();
@@ -587,7 +580,8 @@ public class ExecutionGraphSchedulingTest extends TestLogger {
 			timeout,
 			log,
 			NettyShuffleMaster.INSTANCE,
-			NoOpJobMasterPartitionTracker.INSTANCE);
+			NoOpJobMasterPartitionTracker.INSTANCE,
+			ComponentMainThreadExecutorServiceAdapter.forMainThread());
 	}
 
 	@Nonnull

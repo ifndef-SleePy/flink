@@ -71,16 +71,15 @@ public abstract class SchedulerTestBase extends TestLogger {
 	@Before
 	public void setup() throws Exception {
 		final JobID jobId = new JobID();
-		slotPool = new TestingSlotPoolImpl(jobId);
-		scheduler = new SchedulerImpl(LocationPreferenceSlotSelectionStrategy.createDefault(), slotPool);
+		slotPool = new TestingSlotPoolImpl(jobId, componentMainThreadExecutor);
+		scheduler = new SchedulerImpl(LocationPreferenceSlotSelectionStrategy.createDefault(), slotPool, componentMainThreadExecutor);
 
 		testingSlotProvider = new TestingSlotPoolSlotProvider();
 
 		final JobMasterId jobMasterId = JobMasterId.generate();
 		final String jobManagerAddress = "localhost";
 		componentMainThreadExecutor = getComponentMainThreadExecutor();
-		slotPool.start(jobMasterId, jobManagerAddress, componentMainThreadExecutor);
-		scheduler.start(componentMainThreadExecutor);
+		slotPool.start(jobMasterId, jobManagerAddress);
 	}
 
 	protected abstract ComponentMainThreadExecutor getComponentMainThreadExecutor();

@@ -19,6 +19,7 @@
 package org.apache.flink.runtime.jobmaster.slotpool;
 
 import org.apache.flink.api.common.JobID;
+import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
 
 import javax.annotation.Nonnull;
 
@@ -28,5 +29,5 @@ import javax.annotation.Nonnull;
 public interface SlotPoolFactory {
 
 	@Nonnull
-	SlotPool createSlotPool(@Nonnull JobID jobId);
+	SlotPool createSlotPool(@Nonnull JobID jobId, ComponentMainThreadExecutor componentMainThreadExecutor);
 }

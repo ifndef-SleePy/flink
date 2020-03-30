@@ -42,7 +42,7 @@ public abstract class FencedRpcEndpoint<F extends Serializable> extends RpcEndpo
 
 	private final UnfencedMainThreadExecutor unfencedMainThreadExecutor;
 	private volatile F fencingToken;
-	private volatile MainThreadExecutor fencedMainThreadExecutor;
+	private final MainThreadExecutor fencedMainThreadExecutor;
 
 	protected FencedRpcEndpoint(RpcService rpcService, String endpointId, @Nullable F fencingToken) {
 		super(rpcService, endpointId);
@@ -82,7 +82,7 @@ public abstract class FencedRpcEndpoint<F extends Serializable> extends RpcEndpo
 			rpcServer,
 			newFencingToken);
 
-		this.fencedMainThreadExecutor = new MainThreadExecutor(mainThreadExecutable, this::validateRunsInMainThread);
+		this.fencedMainThreadExecutor.updateMainThreadExecutable(mainThreadExecutable);
 	}
 
 	/**

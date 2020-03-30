@@ -23,6 +23,7 @@ import org.apache.flink.api.common.time.Time;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.runtime.blob.BlobWriter;
 import org.apache.flink.runtime.checkpoint.CheckpointRecoveryFactory;
+import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutor;
 import org.apache.flink.runtime.executiongraph.restart.RestartStrategyFactory;
 import org.apache.flink.runtime.io.network.partition.JobMasterPartitionTracker;
 import org.apache.flink.runtime.jobgraph.JobGraph;
@@ -65,7 +66,8 @@ public class LegacySchedulerFactory implements SchedulerNGFactory {
 			final JobManagerJobMetricGroup jobManagerJobMetricGroup,
 			final Time slotRequestTimeout,
 			final ShuffleMaster<?> shuffleMaster,
-			final JobMasterPartitionTracker partitionTracker) throws Exception {
+			final JobMasterPartitionTracker partitionTracker,
+			final ComponentMainThreadExecutor mainThreadExecutor) throws Exception {
 
 		return new LegacyScheduler(
 			log,
@@ -83,6 +85,7 @@ public class LegacySchedulerFactory implements SchedulerNGFactory {
 			jobManagerJobMetricGroup,
 			slotRequestTimeout,
 			shuffleMaster,
-			partitionTracker);
+			partitionTracker,
+			mainThreadExecutor);
 	}
 }

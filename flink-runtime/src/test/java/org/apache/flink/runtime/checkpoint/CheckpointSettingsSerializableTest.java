@@ -27,6 +27,7 @@ import org.apache.flink.core.testutils.CommonTestUtils;
 import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.metrics.groups.UnregisteredMetricsGroup;
 import org.apache.flink.runtime.blob.VoidBlobWriter;
+import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutorServiceAdapter;
 import org.apache.flink.runtime.execution.Environment;
 import org.apache.flink.runtime.executiongraph.ExecutionGraph;
 import org.apache.flink.runtime.executiongraph.ExecutionGraphBuilder;
@@ -42,8 +43,8 @@ import org.apache.flink.runtime.shuffle.NettyShuffleMaster;
 import org.apache.flink.runtime.state.AbstractKeyedStateBackend;
 import org.apache.flink.runtime.state.CheckpointStorage;
 import org.apache.flink.runtime.state.CompletedCheckpointStorageLocation;
-import org.apache.flink.runtime.state.KeyedStateHandle;
 import org.apache.flink.runtime.state.KeyGroupRange;
+import org.apache.flink.runtime.state.KeyedStateHandle;
 import org.apache.flink.runtime.state.OperatorStateBackend;
 import org.apache.flink.runtime.state.OperatorStateHandle;
 import org.apache.flink.runtime.state.StateBackend;
@@ -56,6 +57,7 @@ import org.apache.flink.util.TestLogger;
 import org.junit.Test;
 
 import javax.annotation.Nonnull;
+
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Collection;
@@ -122,7 +124,8 @@ public class CheckpointSettingsSerializableTest extends TestLogger {
 			timeout,
 			log,
 			NettyShuffleMaster.INSTANCE,
-			NoOpJobMasterPartitionTracker.INSTANCE);
+			NoOpJobMasterPartitionTracker.INSTANCE,
+			ComponentMainThreadExecutorServiceAdapter.forMainThread());
 
 		assertEquals(1, eg.getCheckpointCoordinator().getNumberOfRegisteredMasterHooks());
 		assertTrue(jobGraph.getCheckpointingSettings().getDefaultStateBackend().deserializeValue(classLoader) instanceof CustomStateBackend);
@@ -133,7 +136,7 @@ public class CheckpointSettingsSerializableTest extends TestLogger {
 	private static final class TestFactory implements MasterTriggerRestoreHook.Factory {
 
 		private static final long serialVersionUID = -612969579110202607L;
-		
+
 		private final Serializable payload;
 
 		TestFactory(Serializable payload) {

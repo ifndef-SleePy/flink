@@ -166,9 +166,7 @@ public abstract class SchedulerBase implements SchedulerNG {
 
 	protected final ExecutionVertexVersioner executionVertexVersioner;
 
-	private ComponentMainThreadExecutor mainThreadExecutor = new ComponentMainThreadExecutor.DummyComponentMainThreadExecutor(
-		"SchedulerBase is not initialized with proper main thread executor. " +
-			"Call to SchedulerBase.setMainThreadExecutor(...) required.");
+	private final ComponentMainThreadExecutor mainThreadExecutor;
 
 	public SchedulerBase(
 		final Logger log,
@@ -188,7 +186,8 @@ public abstract class SchedulerBase implements SchedulerNG {
 		final ShuffleMaster<?> shuffleMaster,
 		final JobMasterPartitionTracker partitionTracker,
 		final ExecutionVertexVersioner executionVertexVersioner,
-		final boolean legacyScheduling) throws Exception {
+		final boolean legacyScheduling,
+		final ComponentMainThreadExecutor mainThreadExecutor) throws Exception {
 
 		this.log = checkNotNull(log);
 		this.jobGraph = checkNotNull(jobGraph);
@@ -219,6 +218,7 @@ public abstract class SchedulerBase implements SchedulerNG {
 		this.slotRequestTimeout = checkNotNull(slotRequestTimeout);
 		this.executionVertexVersioner = checkNotNull(executionVertexVersioner);
 		this.legacyScheduling = legacyScheduling;
+		this.mainThreadExecutor = checkNotNull(mainThreadExecutor);
 
 		this.executionGraph = createAndRestoreExecutionGraph(jobManagerJobMetricGroup, checkNotNull(shuffleMaster), checkNotNull(partitionTracker));
 		this.schedulingTopology = executionGraph.getSchedulingTopology();
@@ -277,7 +277,8 @@ public abstract class SchedulerBase implements SchedulerNG {
 			log,
 			shuffleMaster,
 			partitionTracker,
-			failoverStrategy);
+			failoverStrategy,
+			mainThreadExecutor);
 	}
 
 	/**
@@ -443,12 +444,6 @@ public abstract class SchedulerBase implements SchedulerNG {
 	// ------------------------------------------------------------------------
 	// SchedulerNG
 	// ------------------------------------------------------------------------
-
-	@Override
-	public void setMainThreadExecutor(final ComponentMainThreadExecutor mainThreadExecutor) {
-		this.mainThreadExecutor = checkNotNull(mainThreadExecutor);
-		executionGraph.start(mainThreadExecutor);
-	}
 
 	@Override
 	public void registerJobStatusListener(final JobStatusListener jobStatusListener) {

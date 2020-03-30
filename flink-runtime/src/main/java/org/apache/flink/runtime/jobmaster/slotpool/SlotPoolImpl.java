@@ -131,7 +131,7 @@ public class SlotPoolImpl implements SlotPool {
 
 	private String jobManagerAddress;
 
-	private ComponentMainThreadExecutor componentMainThreadExecutor;
+	private final ComponentMainThreadExecutor componentMainThreadExecutor;
 
 	// ------------------------------------------------------------------------
 
@@ -140,7 +140,8 @@ public class SlotPoolImpl implements SlotPool {
 			Clock clock,
 			Time rpcTimeout,
 			Time idleSlotTimeout,
-			Time batchSlotTimeout) {
+			Time batchSlotTimeout,
+			ComponentMainThreadExecutor componentMainThreadExecutor) {
 
 		this.jobId = checkNotNull(jobId);
 		this.clock = checkNotNull(clock);
@@ -158,7 +159,7 @@ public class SlotPoolImpl implements SlotPool {
 		this.resourceManagerGateway = null;
 		this.jobManagerAddress = null;
 
-		this.componentMainThreadExecutor = null;
+		this.componentMainThreadExecutor = checkNotNull(componentMainThreadExecutor);
 	}
 
 	// ------------------------------------------------------------------------
@@ -198,16 +199,13 @@ public class SlotPoolImpl implements SlotPool {
 	 *
 	 * @param jobMasterId The necessary leader id for running the job.
 	 * @param newJobManagerAddress for the slot requests which are sent to the resource manager
-	 * @param componentMainThreadExecutor The main thread executor for the job master's main thread.
 	 */
 	public void start(
 		@Nonnull JobMasterId jobMasterId,
-		@Nonnull String newJobManagerAddress,
-		@Nonnull ComponentMainThreadExecutor componentMainThreadExecutor) throws Exception {
+		@Nonnull String newJobManagerAddress) throws Exception {
 
 		this.jobMasterId = jobMasterId;
 		this.jobManagerAddress = newJobManagerAddress;
-		this.componentMainThreadExecutor = componentMainThreadExecutor;
 
 		scheduleRunAsync(this::checkIdleSlot, idleSlotTimeout);
 		scheduleRunAsync(this::checkBatchSlotTimeout, batchSlotTimeout);

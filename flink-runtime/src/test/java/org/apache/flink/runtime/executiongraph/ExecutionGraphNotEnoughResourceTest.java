@@ -93,7 +93,7 @@ public class ExecutionGraphNotEnoughResourceTest extends TestLogger {
 
 		SlotPool slotPool = null;
 		try {
-			slotPool = new TestingSlotPoolImpl(TEST_JOB_ID);
+			slotPool = new TestingSlotPoolImpl(TEST_JOB_ID, mainThreadExecutor);
 			final Scheduler scheduler = createSchedulerWithSlots(
 				parallelism - 1, slotPool, new LocalTaskManagerLocation());
 
@@ -121,9 +121,8 @@ public class ExecutionGraphNotEnoughResourceTest extends TestLogger {
 				.setSlotProvider(scheduler)
 				.setRestartStrategy(restartStrategy)
 				.setAllocationTimeout(Time.milliseconds(1L))
+				.setMainThreadExecutor(mainThreadExecutor)
 				.build();
-
-			eg.start(mainThreadExecutor);
 
 			mainThreadExecutor.execute(ThrowingRunnable.unchecked(eg::scheduleForExecution));
 
@@ -152,10 +151,9 @@ public class ExecutionGraphNotEnoughResourceTest extends TestLogger {
 		final TaskManagerGateway taskManagerGateway = new SimpleAckingTaskManagerGateway();
 		final String jobManagerAddress = "foobar";
 		final ResourceManagerGateway resourceManagerGateway = new TestingResourceManagerGateway();
-		slotPool.start(JobMasterId.generate(), jobManagerAddress, mainThreadExecutor);
+		slotPool.start(JobMasterId.generate(), jobManagerAddress);
 		slotPool.connectToResourceManager(resourceManagerGateway);
-		Scheduler scheduler = new SchedulerImpl(LocationPreferenceSlotSelectionStrategy.createDefault(), slotPool);
-		scheduler.start(mainThreadExecutor);
+		Scheduler scheduler = new SchedulerImpl(LocationPreferenceSlotSelectionStrategy.createDefault(), slotPool, mainThreadExecutor);
 
 		CompletableFuture.runAsync(() -> slotPool.registerTaskManager(taskManagerLocation.getResourceID()), mainThreadExecutor).join();
 

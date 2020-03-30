@@ -18,7 +18,6 @@
 
 package org.apache.flink.runtime.operators.coordination;
 
-import org.apache.flink.runtime.concurrent.ComponentMainThreadExecutorServiceAdapter;
 import org.apache.flink.runtime.concurrent.FutureUtils;
 import org.apache.flink.runtime.concurrent.ManuallyTriggeredScheduledExecutorService;
 import org.apache.flink.runtime.execution.ExecutionState;
@@ -212,12 +211,9 @@ public class OperatorCoordinatorSchedulerTest extends TestLogger {
 			SchedulerTestingUtils.enableCheckpointing(jobGraph);
 		}
 
-		final DefaultScheduler scheduler = taskExecutorOperatorEventGateway == null
+		return taskExecutorOperatorEventGateway == null
 				? SchedulerTestingUtils.createScheduler(jobGraph, executor)
 				: SchedulerTestingUtils.createScheduler(jobGraph, executor, taskExecutorOperatorEventGateway);
-		scheduler.setMainThreadExecutor(ComponentMainThreadExecutorServiceAdapter.forMainThread());
-
-		return scheduler;
 	}
 
 	private TestingOperatorCoordinator getCoordinator(DefaultScheduler scheduler) {

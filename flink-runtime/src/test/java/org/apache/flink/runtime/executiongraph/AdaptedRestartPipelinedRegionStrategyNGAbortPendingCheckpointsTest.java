@@ -155,10 +155,10 @@ public class AdaptedRestartPipelinedRegionStrategyNGAbortPendingCheckpointsTest 
 			.setRestartStrategy(new FixedDelayRestartStrategy(10, 0))
 			.setFailoverStrategyFactory(AdaptedRestartPipelinedRegionStrategyNG::new)
 			.setSlotProvider(new SimpleSlotProvider(2, taskManagerGateway))
+			.setMainThreadExecutor(componentMainThreadExecutor)
 			.build();
 
 		enableCheckpointing(executionGraph);
-		executionGraph.start(componentMainThreadExecutor);
 		executionGraph.scheduleForExecution();
 		manualMainThreadExecutor.triggerAll();
 		return executionGraph;

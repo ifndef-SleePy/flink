@@ -78,10 +78,9 @@ public class SlotPoolResource extends ExternalResource {
 
 		testingResourceManagerGateway = new TestingResourceManagerGateway();
 
-		slotPool = new TestingSlotPoolImpl(new JobID());
-		scheduler = new SchedulerImpl(schedulingStrategy, slotPool);
-		slotPool.start(JobMasterId.generate(), "foobar", mainThreadExecutor);
-		scheduler.start(mainThreadExecutor);
+		slotPool = new TestingSlotPoolImpl(new JobID(), mainThreadExecutor);
+		scheduler = new SchedulerImpl(schedulingStrategy, slotPool, mainThreadExecutor);
+		slotPool.start(JobMasterId.generate(), "foobar");
 		slotPool.connectToResourceManager(testingResourceManagerGateway);
 	}
 
