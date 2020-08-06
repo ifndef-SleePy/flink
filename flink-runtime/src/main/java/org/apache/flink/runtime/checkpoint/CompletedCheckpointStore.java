@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.ListIterator;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * A bounded LIFO-queue of {@link CompletedCheckpoint} instances.
@@ -47,33 +48,34 @@ public interface CompletedCheckpointStore {
 	 * <p>Only a bounded number of checkpoints is kept. When exceeding the maximum number of
 	 * retained checkpoints, the oldest one will be discarded.
 	 */
-	void addCheckpoint(CompletedCheckpoint checkpoint) throws Exception;
+	CompletableFuture<?> addCheckpoint(CompletedCheckpoint checkpoint) throws Exception;
 
 	/**
 	 * Returns the latest {@link CompletedCheckpoint} instance or <code>null</code> if none was
 	 * added.
 	 */
-	default CompletedCheckpoint getLatestCheckpoint(boolean isPreferCheckpointForRecovery) throws Exception {
-		List<CompletedCheckpoint> allCheckpoints = getAllCheckpoints();
-		if (allCheckpoints.isEmpty()) {
-			return null;
-		}
-
-		CompletedCheckpoint lastCompleted = allCheckpoints.get(allCheckpoints.size() - 1);
-
-		if (isPreferCheckpointForRecovery && allCheckpoints.size() > 1 && lastCompleted.getProperties().isSavepoint()) {
-			ListIterator<CompletedCheckpoint> listIterator = allCheckpoints.listIterator(allCheckpoints.size() - 1);
-			while (listIterator.hasPrevious()) {
-				CompletedCheckpoint prev = listIterator.previous();
-				if (!prev.getProperties().isSavepoint()) {
-					LOG.info("Found a completed checkpoint ({}) before the latest savepoint, will use it to recover!", prev);
-					return prev;
-				}
+	default CompletableFuture<CompletedCheckpoint> getLatestCheckpoint(boolean isPreferCheckpointForRecovery) throws Exception {
+		return getAllCheckpoints().thenApply(allCheckpoints -> {
+			if (allCheckpoints.isEmpty()) {
+				return null;
 			}
-			LOG.info("Did not find earlier checkpoint, using latest savepoint to recover.");
-		}
 
-		return lastCompleted;
+			CompletedCheckpoint lastCompleted = allCheckpoints.get(allCheckpoints.size() - 1);
+
+			if (isPreferCheckpointForRecovery && allCheckpoints.size() > 1 && lastCompleted.getProperties().isSavepoint()) {
+				ListIterator<CompletedCheckpoint> listIterator = allCheckpoints.listIterator(allCheckpoints.size() - 1);
+				while (listIterator.hasPrevious()) {
+					CompletedCheckpoint prev = listIterator.previous();
+					if (!prev.getProperties().isSavepoint()) {
+						LOG.info("Found a completed checkpoint ({}) before the latest savepoint, will use it to recover!", prev);
+						return prev;
+					}
+				}
+				LOG.info("Did not find earlier checkpoint, using latest savepoint to recover.");
+			}
+
+			return lastCompleted;
+		});
 	}
 
 	/**
@@ -91,7 +93,7 @@ public interface CompletedCheckpointStore {
 	 *
 	 * <p>Returns an empty list if no checkpoint has been added yet.
 	 */
-	List<CompletedCheckpoint> getAllCheckpoints() throws Exception;
+	CompletableFuture<List<CompletedCheckpoint>> getAllCheckpoints() throws Exception;
 
 	/**
 	 * Returns the current number of retained checkpoints.

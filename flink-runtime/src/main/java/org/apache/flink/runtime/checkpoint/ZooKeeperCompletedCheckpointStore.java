@@ -36,6 +36,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.ConcurrentModificationException;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 import static org.apache.flink.util.Preconditions.checkArgument;
@@ -83,6 +84,8 @@ public class ZooKeeperCompletedCheckpointStore implements CompletedCheckpointSto
 	 */
 	private final ArrayDeque<CompletedCheckpoint> completedCheckpoints;
 
+	private final ArrayDeque<CompletableFuture<CompletedCheckpoint>> uncommittedCheckpoints;
+
 	private final Executor executor;
 
 	/**
@@ -107,6 +110,8 @@ public class ZooKeeperCompletedCheckpointStore implements CompletedCheckpointSto
 		this.checkpointsInZooKeeper = checkNotNull(checkpointsInZooKeeper);
 
 		this.completedCheckpoints = new ArrayDeque<>(maxNumberOfCheckpointsToRetain + 1);
+
+		this.uncommittedCheckpoints = new ArrayDeque<>();
 
 		this.executor = checkNotNull(executor);
 	}
