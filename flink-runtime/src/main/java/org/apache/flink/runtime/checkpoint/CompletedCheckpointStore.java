@@ -48,7 +48,7 @@ public interface CompletedCheckpointStore {
 	 * <p>Only a bounded number of checkpoints is kept. When exceeding the maximum number of
 	 * retained checkpoints, the oldest one will be discarded.
 	 */
-	CompletableFuture<?> addCheckpoint(CompletedCheckpoint checkpoint) throws Exception;
+	CompletableFuture<Void> addCheckpoint(CompletedCheckpoint checkpoint) throws Exception;
 
 	/**
 	 * Returns the latest {@link CompletedCheckpoint} instance or <code>null</code> if none was

@@ -20,6 +20,7 @@ package org.apache.flink.runtime.checkpoint;
 
 import org.apache.flink.api.common.JobStatus;
 import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.runtime.concurrent.FutureUtils;
 import org.apache.flink.runtime.jobmanager.HighAvailabilityMode;
 import org.apache.flink.runtime.state.RetrievableStateHandle;
 import org.apache.flink.runtime.zookeeper.ZooKeeperStateHandleStore;
@@ -35,8 +36,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.ConcurrentModificationException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 
 import static org.apache.flink.util.Preconditions.checkArgument;
@@ -84,7 +88,7 @@ public class ZooKeeperCompletedCheckpointStore implements CompletedCheckpointSto
 	 */
 	private final ArrayDeque<CompletedCheckpoint> completedCheckpoints;
 
-	private final ArrayDeque<CompletableFuture<CompletedCheckpoint>> uncommittedCheckpoints;
+	private final Map<Long, CompletableFuture<CompletedCheckpoint>> uncommittedCheckpoints;
 
 	private final Executor executor;
 
@@ -111,7 +115,7 @@ public class ZooKeeperCompletedCheckpointStore implements CompletedCheckpointSto
 
 		this.completedCheckpoints = new ArrayDeque<>(maxNumberOfCheckpointsToRetain + 1);
 
-		this.uncommittedCheckpoints = new ArrayDeque<>();
+		this.uncommittedCheckpoints = new HashMap<>();
 
 		this.executor = checkNotNull(executor);
 	}
@@ -212,23 +216,53 @@ public class ZooKeeperCompletedCheckpointStore implements CompletedCheckpointSto
 	 * @param checkpoint Completed checkpoint to add.
 	 */
 	@Override
-	public void addCheckpoint(final CompletedCheckpoint checkpoint) throws Exception {
+	public CompletableFuture<Void> addCheckpoint(final CompletedCheckpoint checkpoint) {
 		checkNotNull(checkpoint, "Checkpoint");
 
-		final String path = checkpointIdToPath(checkpoint.getCheckpointID());
+		final CompletableFuture<Void> commitFuture = CompletableFuture.supplyAsync(() -> {
+			final String path = checkpointIdToPath(checkpoint.getCheckpointID());
 
-		// Now add the new one. If it fails, we don't want to loose existing data.
-		checkpointsInZooKeeper.addAndLock(path, checkpoint);
+			// Now add the new one. If it fails, we don't want to loose existing data.
+			try {
+				checkpointsInZooKeeper.addAndLock(path, checkpoint);
+			} catch (Exception e) {
+				throw new CompletionException(e);
+			}
 
-		completedCheckpoints.addLast(checkpoint);
+			final List<CompletedCheckpoint> checkpointsToSubsume = new ArrayList<>();
+			synchronized (completedCheckpoints) {
+				// TODO, it's OK with concurrent visiting, it must be savepoint causes concurrent
+				completedCheckpoints.addLast(checkpoint);
+				// Everything worked, let's remove a previous checkpoint if necessary.
+				while (completedCheckpoints.size() > maxNumberOfCheckpointsToRetain) {
+					checkpointsToSubsume.add(completedCheckpoints.removeFirst());
+				}
+			}
 
-		// Everything worked, let's remove a previous checkpoint if necessary.
-		while (completedCheckpoints.size() > maxNumberOfCheckpointsToRetain) {
-			final CompletedCheckpoint completedCheckpoint = completedCheckpoints.removeFirst();
-			tryRemoveCompletedCheckpoint(completedCheckpoint, CompletedCheckpoint::discardOnSubsume);
-		}
+			for (CompletedCheckpoint completedCheckpoint : checkpointsToSubsume) {
+				tryRemoveCompletedCheckpoint(completedCheckpoint, CompletedCheckpoint::discardOnSubsume);
+			}
 
-		LOG.debug("Added {} to {}.", checkpoint, path);
+			LOG.debug("Added {} to {}.", checkpoint, path);
+			return null;
+		}, executor);
+
+		// TODO, invoker must not be in io thread, deadlock
+		uncommittedCheckpoints.put(checkpoint.getCheckpointID(), new CompletableFuture<>());
+
+		commitFuture.whenComplete((Void ignored, Throwable throwable) -> {
+			// TODO, lock?
+			final CompletableFuture<CompletedCheckpoint> uncommittedCheckpoint = uncommittedCheckpoints.remove(checkpoint.getCheckpointID());
+			if (uncommittedCheckpoint != null) {
+				if (throwable == null) {
+					uncommittedCheckpoint.complete(checkpoint);
+				} else {
+					uncommittedCheckpoint.completeExceptionally(throwable);
+				}
+			}
+		});
+
+		return commitFuture;
 	}
 
 	private void tryRemoveCompletedCheckpoint(CompletedCheckpoint completedCheckpoint, ThrowingConsumer<CompletedCheckpoint, Exception> discardCallback) {
@@ -249,8 +283,13 @@ public class ZooKeeperCompletedCheckpointStore implements CompletedCheckpointSto
 	}
 
 	@Override
-	public List<CompletedCheckpoint> getAllCheckpoints() throws Exception {
-		return new ArrayList<>(completedCheckpoints);
+	public CompletableFuture<List<CompletedCheckpoint>> getAllCheckpoints() throws Exception {
+		// TODO, lock?
+		if (uncommittedCheckpoints.size() > 0) {
+			return FutureUtils.waitForAll(uncommittedCheckpoints.values()).thenApply(ignore -> new ArrayList<>(completedCheckpoints));
+		} else {
+			return CompletableFuture.completedFuture(new ArrayList<>(completedCheckpoints));
+		}
 	}
 
 	@Override
