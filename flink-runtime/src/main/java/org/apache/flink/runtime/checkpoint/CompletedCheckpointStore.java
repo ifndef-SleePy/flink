@@ -54,28 +54,27 @@ public interface CompletedCheckpointStore {
 	 * Returns the latest {@link CompletedCheckpoint} instance or <code>null</code> if none was
 	 * added.
 	 */
-	default CompletableFuture<CompletedCheckpoint> getLatestCheckpoint(boolean isPreferCheckpointForRecovery) throws Exception {
-		return getAllCheckpoints().thenApply(allCheckpoints -> {
-			if (allCheckpoints.isEmpty()) {
-				return null;
-			}
+	default CompletedCheckpoint getLatestCheckpoint(boolean isPreferCheckpointForRecovery) throws Exception {
+		List<CompletedCheckpoint> allCheckpoints = getAllCheckpoints();
+		if (allCheckpoints.isEmpty()) {
+			return null;
+		}
 
-			CompletedCheckpoint lastCompleted = allCheckpoints.get(allCheckpoints.size() - 1);
+		CompletedCheckpoint lastCompleted = allCheckpoints.get(allCheckpoints.size() - 1);
 
-			if (isPreferCheckpointForRecovery && allCheckpoints.size() > 1 && lastCompleted.getProperties().isSavepoint()) {
-				ListIterator<CompletedCheckpoint> listIterator = allCheckpoints.listIterator(allCheckpoints.size() - 1);
-				while (listIterator.hasPrevious()) {
-					CompletedCheckpoint prev = listIterator.previous();
-					if (!prev.getProperties().isSavepoint()) {
-						LOG.info("Found a completed checkpoint ({}) before the latest savepoint, will use it to recover!", prev);
-						return prev;
-					}
+		if (isPreferCheckpointForRecovery && allCheckpoints.size() > 1 && lastCompleted.getProperties().isSavepoint()) {
+			ListIterator<CompletedCheckpoint> listIterator = allCheckpoints.listIterator(allCheckpoints.size() - 1);
+			while (listIterator.hasPrevious()) {
+				CompletedCheckpoint prev = listIterator.previous();
+				if (!prev.getProperties().isSavepoint()) {
+					LOG.info("Found a completed checkpoint ({}) before the latest savepoint, will use it to recover!", prev);
+					return prev;
 				}
-				LOG.info("Did not find earlier checkpoint, using latest savepoint to recover.");
 			}
+			LOG.info("Did not find earlier checkpoint, using latest savepoint to recover.");
+		}
 
-			return lastCompleted;
-		});
+		return lastCompleted;
 	}
 
 	/**
@@ -93,7 +92,7 @@ public interface CompletedCheckpointStore {
 	 *
 	 * <p>Returns an empty list if no checkpoint has been added yet.
 	 */
-	CompletableFuture<List<CompletedCheckpoint>> getAllCheckpoints() throws Exception;
+	List<CompletedCheckpoint> getAllCheckpoints() throws Exception;
 
 	/**
 	 * Returns the current number of retained checkpoints.

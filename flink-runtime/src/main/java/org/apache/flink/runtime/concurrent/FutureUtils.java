@@ -650,6 +650,15 @@ public class FutureUtils {
 		return new WaitingConjunctFuture(futures);
 	}
 
+	public static ConjunctFuture<Void> waitForAll(
+		Collection<? extends CompletableFuture<?>> futures,
+		boolean ignoreFailure) {
+
+		checkNotNull(futures, "futures");
+
+		return new WaitingConjunctFuture(futures, ignoreFailure);
+	}
+
 	/**
 	 * A future that is complete once multiple other futures completed. The futures are not
 	 * necessarily of the same type. The ConjunctFuture fails (completes exceptionally) once
@@ -744,9 +753,11 @@ public class FutureUtils {
 		/** Total number of futures to wait on. */
 		private final int numTotal;
 
+		private final boolean ignoreFailure;
+
 		/** Method which increments the atomic completion counter and completes or fails the WaitingFutureImpl. */
 		private void handleCompletedFuture(Object ignored, Throwable throwable) {
-			if (throwable == null) {
+			if (throwable == null || ignoreFailure) {
 				if (numTotal == numCompleted.incrementAndGet()) {
 					complete(null);
 				}
@@ -756,7 +767,12 @@ public class FutureUtils {
 		}
 
 		private WaitingConjunctFuture(Collection<? extends CompletableFuture<?>> futures) {
+			this(futures, false);
+		}
+
+		private WaitingConjunctFuture(Collection<? extends CompletableFuture<?>> futures, boolean ignoreFailure) {
 			this.numTotal = futures.size();
+			this.ignoreFailure = ignoreFailure;
 
 			if (futures.isEmpty()) {
 				complete(null);
@@ -1048,7 +1064,7 @@ public class FutureUtils {
 		if (future.isDone() && !future.isCompletedExceptionally()) {
 			try {
 				return future.get();
-			} catch (InterruptedException | ExecutionException ignored) {
+			} catch (Throwable ignored) {
 			}
 		}
 		return null;
