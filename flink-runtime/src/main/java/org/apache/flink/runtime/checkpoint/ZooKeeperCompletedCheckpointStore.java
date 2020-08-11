@@ -234,7 +234,8 @@ public class ZooKeeperCompletedCheckpointStore implements CompletedCheckpointSto
 		checkNotNull(checkpoint, "Checkpoint");
 
 		final UncommittedCheckpoint uncommittedCheckpoint = new UncommittedCheckpoint(checkpoint);
-		synchronized (lock) {
+		// we use a smaller lock(uncommittedCheckpoints) to avoid unnecessary blocking here
+		synchronized (uncommittedCheckpoints) {
 			uncommittedCheckpoints.add(uncommittedCheckpoint);
 		}
 
@@ -242,7 +243,10 @@ public class ZooKeeperCompletedCheckpointStore implements CompletedCheckpointSto
 			synchronized (lock) {
 				// here it polls from uncommitted queue instead of using uncommittedCheckpoint
 				// directly, because we want to keep checkpoints FIFO
-				final UncommittedCheckpoint currentUncommittedCheckpoint = uncommittedCheckpoints.poll();
+				final UncommittedCheckpoint currentUncommittedCheckpoint;
+				synchronized (uncommittedCheckpoints) {
+					currentUncommittedCheckpoint = uncommittedCheckpoints.poll();
+				}
 				if (currentUncommittedCheckpoint == null) {
 					return;
 				}
